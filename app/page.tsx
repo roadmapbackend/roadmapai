@@ -5,6 +5,13 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchWithAuth, API_BASE_URL } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
+import {
+  getUserActiveRoadmap,
+  saveRoadmapToSupabase,
+  saveDayTopicsToSupabase,
+  getOrSaveLessonFromSupabase,
+  logAgentExecution,
+} from "@/lib/supabase-roadmap";
 import AntigravityCard from "@/components/AntigravityCard";
 
 interface Topic {
@@ -61,17 +68,34 @@ export default function Home() {
 
   // Auth & Initial starter tree
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    let isMounted = true;
+
+    async function initUserAndData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!isMounted) return;
       setCurrentUser(user);
-    });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user || null);
-    });
+      if (user) {
+        await loadUserRoadmap(user.id);
+      } else {
+        loadGuestRoadmap();
+      }
+    }
 
-    handleGenerateRoadmap();
+    initUserAndData();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const user = session?.user || null;
+      setCurrentUser(user);
+      if (user) {
+        await loadUserRoadmap(user.id);
+      } else {
+        loadGuestRoadmap();
+      }
+    });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
@@ -79,7 +103,88 @@ export default function Home() {
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
+    loadGuestRoadmap();
     router.refresh();
+  };
+
+  // Load existing active roadmap for authenticated user or auto-create first one
+  const loadUserRoadmap = async (userId: string) => {
+    setIsGeneratingRoadmap(true);
+    try {
+      const activeData = await getUserActiveRoadmap(userId);
+      if (activeData && activeData.roadmap && activeData.days && activeData.days.length > 0) {
+        setRoadmapId(activeData.roadmap.id);
+        setDomain(activeData.roadmap.domain_context || domain);
+        setTotalDays(activeData.roadmap.total_days || totalDays);
+        setDailyHours(activeData.roadmap.daily_hours_commitment || dailyHours);
+        setRoadmapDays(activeData.days);
+
+        const firstDay = activeData.days[0];
+        setSelectedDayId(firstDay.id);
+
+        if (firstDay.topics && firstDay.topics.length > 0) {
+          const firstTopic = firstDay.topics[0];
+          setSelectedTopicId(firstTopic.id);
+          await handleFetchLesson(firstTopic.id, firstTopic.title);
+        } else {
+          await handleFetchDayTopics(activeData.roadmap.id, firstDay.id);
+        }
+        return;
+      }
+
+      // No active roadmap found in Supabase for this user, generate and persist their first one!
+      const created = await saveRoadmapToSupabase(userId, domain, totalDays, dailyHours);
+      setRoadmapId(created.roadmap.id);
+      setRoadmapDays(created.days);
+      if (created.days.length > 0) {
+        const firstDay = created.days[0];
+        setSelectedDayId(firstDay.id);
+        if (firstDay.topics.length > 0) {
+          const firstTopic = firstDay.topics[0];
+          setSelectedTopicId(firstTopic.id);
+          await handleFetchLesson(firstTopic.id, firstTopic.title);
+        }
+      }
+    } catch (err) {
+      console.error("Error loading user roadmap from Supabase:", err);
+      loadGuestRoadmap();
+    } finally {
+      setIsGeneratingRoadmap(false);
+    }
+  };
+
+  const loadGuestRoadmap = () => {
+    setRoadmapId(null);
+    const localDays: DayNode[] = Array.from({ length: totalDays }, (_, i) => ({
+      id: `guest-day-${i + 1}`,
+      day_number: i + 1,
+      title: i === 0 ? "Mental Models & Distributed Invariants" : i === totalDays - 1 ? "Capstone Milestone & Fault Injection" : `Applied Patterns & Storage Engines (Part ${i + 1})`,
+      description: `Comprehensive instruction, state boundaries, and exercises for ${domain}.`,
+      learning_objectives: ["Master core mechanics", "Implement working patterns", "Edge case analysis"],
+      status: i === 0 ? "in_progress" : "not_started",
+      topics: [
+        {
+          id: `guest-top-${i + 1}-1`,
+          topic_number: 1,
+          title: "Core Architecture & State Invariants",
+          description: "Fundamental principles and failure boundary analysis.",
+          estimated_minutes: Math.round((dailyHours * 60) / 2),
+          status: i === 0 ? "in_progress" : "not_started",
+        },
+        {
+          id: `guest-top-${i + 1}-2`,
+          topic_number: 2,
+          title: "Hands-On Implementation & Patterns",
+          description: "Writing resilient code and evaluating asynchronous race states.",
+          estimated_minutes: Math.round((dailyHours * 60) / 2),
+          status: "not_started",
+        },
+      ],
+    }));
+    setRoadmapDays(localDays);
+    setSelectedDayId(localDays[0].id);
+    setSelectedTopicId(localDays[0].topics[0].id);
+    loadMockLesson(localDays[0].topics[0].title);
   };
 
   // Trigger Agent 1: Roadmap Structure Agent
@@ -88,67 +193,70 @@ export default function Home() {
     setIsGeneratingRoadmap(true);
 
     try {
-      const res = await fetchWithAuth("/roadmap/generate", {
-        method: "POST",
-        body: JSON.stringify({
-          domain_context: domain,
-          total_days: totalDays,
-          daily_hours: dailyHours,
-          skill_level: "intermediate",
-        }),
-      });
+      // 1. Try FastAPI backend if active
+      try {
+        const res = await fetchWithAuth("/roadmap/generate", {
+          method: "POST",
+          body: JSON.stringify({
+            domain_context: domain,
+            total_days: totalDays,
+            daily_hours: dailyHours,
+            skill_level: "intermediate",
+          }),
+        });
 
-      if (res.roadmap && res.days) {
-        setRoadmapId(res.roadmap.id);
-        const mappedDays: DayNode[] = res.days.map((d: any) => ({
-          id: d.id,
-          day_number: d.day_number,
-          title: d.title,
-          description: d.description,
-          learning_objectives: d.learning_objectives || [],
-          status: d.status || "not_started",
-          topics: [],
-        }));
-        setRoadmapDays(mappedDays);
+        if (res && res.roadmap && res.days) {
+          setRoadmapId(res.roadmap.id);
+          const mappedDays: DayNode[] = res.days.map((d: any) => ({
+            id: d.id,
+            day_number: d.day_number,
+            title: d.title,
+            description: d.description,
+            learning_objectives: d.learning_objectives || [],
+            status: d.status || "not_started",
+            topics: [],
+          }));
+          setRoadmapDays(mappedDays);
 
-        if (mappedDays.length > 0) {
-          const firstDay = mappedDays[0];
-          setSelectedDayId(firstDay.id);
-          await handleFetchDayTopics(res.roadmap.id, firstDay.id);
+          if (mappedDays.length > 0) {
+            const firstDay = mappedDays[0];
+            setSelectedDayId(firstDay.id);
+            await handleFetchDayTopics(res.roadmap.id, firstDay.id);
+          }
+          return;
         }
+      } catch (backendErr) {
+        console.warn("Backend API offline or unreachable, writing directly to Supabase:", backendErr);
       }
+
+      // 2. Direct Supabase generation and persistence if authenticated
+      if (currentUser?.id) {
+        const created = await saveRoadmapToSupabase(
+          currentUser.id,
+          domain,
+          totalDays,
+          dailyHours
+        );
+        setRoadmapId(created.roadmap.id);
+        setRoadmapDays(created.days);
+
+        if (created.days.length > 0) {
+          const firstDay = created.days[0];
+          setSelectedDayId(firstDay.id);
+          if (firstDay.topics.length > 0) {
+            const firstTopic = firstDay.topics[0];
+            setSelectedTopicId(firstTopic.id);
+            await handleFetchLesson(firstTopic.id, firstTopic.title);
+          }
+        }
+        return;
+      }
+
+      // 3. Fallback guest simulation
+      loadGuestRoadmap();
     } catch (err) {
-      console.warn("API fallback mode active (Backend offline or local simulation):", err);
-      const localDays: DayNode[] = Array.from({ length: totalDays }, (_, i) => ({
-        id: `day-${i + 1}`,
-        day_number: i + 1,
-        title: i === 0 ? "Mental Models & Distributed Invariants" : i === totalDays - 1 ? "Capstone Milestone & Fault Injection" : `Applied Patterns & Storage Engines (Part ${i + 1})`,
-        description: `Comprehensive instruction, state boundaries, and exercises for ${domain}.`,
-        learning_objectives: ["Master core mechanics", "Implement working patterns", "Edge case analysis"],
-        status: i === 0 ? "in_progress" : "not_started",
-        topics: [
-          {
-            id: `top-${i + 1}-1`,
-            topic_number: 1,
-            title: "Core Architecture & State Invariants",
-            description: "Fundamental principles and failure boundary analysis.",
-            estimated_minutes: Math.round((dailyHours * 60) / 2),
-            status: i === 0 ? "in_progress" : "not_started",
-          },
-          {
-            id: `top-${i + 1}-2`,
-            topic_number: 2,
-            title: "Hands-On Implementation & Patterns",
-            description: "Writing resilient code and evaluating asynchronous race states.",
-            estimated_minutes: Math.round((dailyHours * 60) / 2),
-            status: "not_started",
-          },
-        ],
-      }));
-      setRoadmapDays(localDays);
-      setSelectedDayId(localDays[0].id);
-      setSelectedTopicId(localDays[0].topics[0].id);
-      loadMockLesson(localDays[0].topics[0].title);
+      console.error("Error generating roadmap:", err);
+      loadGuestRoadmap();
     } finally {
       setIsGeneratingRoadmap(false);
     }
@@ -158,30 +266,66 @@ export default function Home() {
   const handleFetchDayTopics = async (rId: string, dId: string) => {
     setIsLoadingTopics(true);
     try {
-      const topicsRes = await fetchWithAuth(`/roadmap/${rId}/day/${dId}/structure`, {
-        method: "POST",
-      });
+      // 1. Try FastAPI backend if active
+      try {
+        const topicsRes = await fetchWithAuth(`/roadmap/${rId}/day/${dId}/structure`, {
+          method: "POST",
+        });
 
-      if (Array.isArray(topicsRes) && topicsRes.length > 0) {
-        setRoadmapDays((prev) =>
-          prev.map((d) =>
-            d.id === dId
-              ? {
-                  ...d,
-                  topics: topicsRes.map((t: any) => ({
-                    id: t.id,
-                    topic_number: t.topic_number,
-                    title: t.title,
-                    description: t.description,
-                    estimated_minutes: t.estimated_minutes,
-                    status: t.status || "not_started",
-                  })),
-                }
-              : d
-          )
-        );
-        setSelectedTopicId(topicsRes[0].id);
-        await handleFetchLesson(topicsRes[0].id);
+        if (Array.isArray(topicsRes) && topicsRes.length > 0) {
+          setRoadmapDays((prev) =>
+            prev.map((d) =>
+              d.id === dId
+                ? {
+                    ...d,
+                    topics: topicsRes.map((t: any) => ({
+                      id: t.id,
+                      topic_number: t.topic_number,
+                      title: t.title,
+                      description: t.description,
+                      estimated_minutes: t.estimated_minutes,
+                      status: t.status || "not_started",
+                    })),
+                  }
+                : d
+            )
+          );
+          setSelectedTopicId(topicsRes[0].id);
+          await handleFetchLesson(topicsRes[0].id, topicsRes[0].title);
+          return;
+        }
+      } catch (backendErr) {
+        console.warn("Agent 2 backend offline, persisting topics in Supabase:", backendErr);
+      }
+
+      // 2. Direct Supabase topics persistence
+      if (rId && dId && !dId.startsWith("guest-")) {
+        const topics = await saveDayTopicsToSupabase(dId, rId, dailyHours);
+        if (topics && topics.length > 0) {
+          setRoadmapDays((prev) =>
+            prev.map((d) =>
+              d.id === dId
+                ? {
+                    ...d,
+                    topics: topics.map((t) => ({
+                      id: t.id,
+                      topic_number: t.topic_number,
+                      title: t.title,
+                      description: t.description,
+                      estimated_minutes: t.estimated_minutes,
+                      status: t.status,
+                    })),
+                  }
+                : d
+            )
+          );
+          setSelectedTopicId(topics[0].id);
+          await handleFetchLesson(topics[0].id, topics[0].title);
+
+          if (currentUser?.id) {
+            await logAgentExecution(currentUser.id, "Agent 2: Daily Structure", 250, 480, 290);
+          }
+        }
       }
     } catch (err) {
       console.warn("Agent 2 fetch error:", err);
@@ -191,18 +335,40 @@ export default function Home() {
   };
 
   // Trigger Agent 3: Daily Teacher Agent
-  const handleFetchLesson = async (tId: string) => {
+  const handleFetchLesson = async (tId: string, topicTitle?: string) => {
     setIsLoadingLesson(true);
     try {
-      const lessonRes = await fetchWithAuth(`/roadmap/topic/${tId}/teach`, {
-        method: "POST",
-      });
-      if (lessonRes && lessonRes.content_markdown) {
-        setCurrentLesson(lessonRes);
+      // 1. Try FastAPI backend if active
+      try {
+        const lessonRes = await fetchWithAuth(`/roadmap/topic/${tId}/teach`, {
+          method: "POST",
+        });
+        if (lessonRes && lessonRes.content_markdown) {
+          setCurrentLesson(lessonRes);
+          return;
+        }
+      } catch (backendErr) {
+        console.warn("Agent 3 backend offline, persisting lesson in Supabase:", backendErr);
       }
+
+      // 2. Direct Supabase lesson retrieval / persistence
+      if (tId && !tId.startsWith("guest-") && tId !== "mock") {
+        const resolvedTitle = topicTitle || selectedTopic?.title || "Applied Architecture & Invariants";
+        const lesson = await getOrSaveLessonFromSupabase(tId, resolvedTitle, domain);
+        if (lesson && lesson.content_markdown) {
+          setCurrentLesson(lesson);
+          if (currentUser?.id) {
+            await logAgentExecution(currentUser.id, "Agent 3: Daily Teacher", 450, 1200, 680);
+          }
+          return;
+        }
+      }
+
+      // 3. Fallback mock lesson
+      loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
     } catch (err) {
       console.warn("Agent 3 fetch error:", err);
-      loadMockLesson("Selected Topic");
+      loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
     } finally {
       setIsLoadingLesson(false);
     }
@@ -299,12 +465,16 @@ export default function Home() {
 
             {currentUser ? (
               <div className="flex items-center gap-2.5">
+                <span className="text-xs font-mono text-emerald-400 glass-pill px-3 py-1.5 rounded-xl hidden sm:inline-flex items-center gap-1.5 border border-emerald-500/30">
+                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+                  Supabase Synced
+                </span>
                 <span className="text-xs font-mono text-zinc-300 glass-pill px-3 py-1.5 rounded-xl hidden sm:inline-block">
                   {currentUser.email}
                 </span>
                 <button
                   onClick={handleSignOut}
-                  className="text-xs font-medium px-3.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-zinc-200 border border-white/[0.1] transition-all"
+                  className="text-xs font-medium px-3.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-zinc-200 border border-white/[0.1] transition-all cursor-pointer"
                 >
                   Sign Out
                 </button>
@@ -464,9 +634,21 @@ export default function Home() {
           <div className="lg:col-span-5 space-y-4">
             <div className="p-4 rounded-2xl glass-panel flex items-center justify-between border-indigo-500/20">
               <div>
-                <span className="text-[10px] uppercase font-mono tracking-widest text-indigo-400 font-bold">
-                  Agent 1: Roadmap Structure
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-mono tracking-widest text-indigo-400 font-bold">
+                    Agent 1: Roadmap Structure
+                  </span>
+                  {currentUser ? (
+                    <span className="text-[9px] uppercase font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                      Supabase Cloud DB
+                    </span>
+                  ) : (
+                    <span className="text-[9px] uppercase font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                      Guest Simulation
+                    </span>
+                  )}
+                </div>
                 <h2 className="text-sm font-bold text-white mt-0.5">{domain}</h2>
               </div>
               <span className="text-xs font-mono text-zinc-300 glass-pill px-3 py-1 rounded-lg">
@@ -495,11 +677,11 @@ export default function Home() {
                       <div
                         onClick={() => {
                           setSelectedDayId(day.id);
-                          if (day.topics.length === 0 && roadmapId) {
+                          if ((!day.topics || day.topics.length === 0) && roadmapId) {
                             handleFetchDayTopics(roadmapId, day.id);
-                          } else if (day.topics.length > 0) {
+                          } else if (day.topics && day.topics.length > 0) {
                             setSelectedTopicId(day.topics[0].id);
-                            handleFetchLesson(day.topics[0].id);
+                            handleFetchLesson(day.topics[0].id, day.topics[0].title);
                           }
                         }}
                         className="cursor-pointer flex items-start justify-between gap-3"
@@ -552,7 +734,7 @@ export default function Home() {
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     setSelectedTopicId(t.id);
-                                    handleFetchLesson(t.id);
+                                    handleFetchLesson(t.id, t.title);
                                   }}
                                   className={`p-3 rounded-xl border cursor-pointer transition-all duration-200 flex items-center justify-between gap-3 ${
                                     isTopicSelected
