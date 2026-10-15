@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { fetchWithAuth, API_BASE_URL } from "@/lib/api";
@@ -11,6 +11,8 @@ import {
   saveDayTopicsToSupabase,
   getOrSaveLessonFromSupabase,
   logAgentExecution,
+  getDomainTopicsForDay,
+  generateDomainDays,
 } from "@/lib/supabase-roadmap";
 import AntigravityCard from "@/components/AntigravityCard";
 
@@ -65,8 +67,10 @@ export default function Home() {
   const [isLoadingLesson, setIsLoadingLesson] = useState(false);
   const [activeTab, setActiveTab] = useState<"lesson" | "code" | "citations" | "courses">("lesson");
   const [copiedCodeIndex, setCopiedCodeIndex] = useState<number | null>(null);
+  const loadedUserRef = useRef<string | null>(null);
+  const inFlightLessonRef = useRef<{ [key: string]: boolean }>({});
 
-  // Auth & Initial starter tree
+  // Auth & Initial starter tree (guarded to prevent duplicate requests)
   useEffect(() => {
     let isMounted = true;
 
@@ -76,20 +80,30 @@ export default function Home() {
       setCurrentUser(user);
 
       if (user) {
-        await loadUserRoadmap(user.id);
+        if (loadedUserRef.current !== user.id) {
+          loadedUserRef.current = user.id;
+          await loadUserRoadmap(user.id);
+        }
       } else {
-        loadGuestRoadmap();
+        if (!loadedUserRef.current) {
+          loadedUserRef.current = "guest";
+          loadGuestRoadmap();
+        }
       }
     }
 
     initUserAndData();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       const user = session?.user || null;
       setCurrentUser(user);
       if (user) {
-        await loadUserRoadmap(user.id);
-      } else {
+        if (loadedUserRef.current !== user.id) {
+          loadedUserRef.current = user.id;
+          await loadUserRoadmap(user.id);
+        }
+      } else if (event === "SIGNED_OUT") {
+        loadedUserRef.current = "guest";
         loadGuestRoadmap();
       }
     });
@@ -155,32 +169,31 @@ export default function Home() {
 
   const loadGuestRoadmap = () => {
     setRoadmapId(null);
-    const localDays: DayNode[] = Array.from({ length: totalDays }, (_, i) => ({
-      id: `guest-day-${i + 1}`,
-      day_number: i + 1,
-      title: i === 0 ? "Mental Models & Distributed Invariants" : i === totalDays - 1 ? "Capstone Milestone & Fault Injection" : `Applied Patterns & Storage Engines (Part ${i + 1})`,
-      description: `Comprehensive instruction, state boundaries, and exercises for ${domain}.`,
-      learning_objectives: ["Master core mechanics", "Implement working patterns", "Edge case analysis"],
-      status: i === 0 ? "in_progress" : "not_started",
-      topics: [
-        {
-          id: `guest-top-${i + 1}-1`,
-          topic_number: 1,
-          title: "Core Architecture & State Invariants",
-          description: "Fundamental principles and failure boundary analysis.",
-          estimated_minutes: Math.round((dailyHours * 60) / 2),
-          status: i === 0 ? "in_progress" : "not_started",
-        },
-        {
-          id: `guest-top-${i + 1}-2`,
-          topic_number: 2,
-          title: "Hands-On Implementation & Patterns",
-          description: "Writing resilient code and evaluating asynchronous race states.",
-          estimated_minutes: Math.round((dailyHours * 60) / 2),
-          status: "not_started",
-        },
-      ],
-    }));
+    const domainDays = generateDomainDays(domain, totalDays);
+
+    const localDays: DayNode[] = domainDays.map((d) => {
+      const dayNum = d.day_number;
+      const domainTopics = getDomainTopicsForDay(domain, dailyHours, dayNum, d.title);
+      const topics: Topic[] = domainTopics.map((t) => ({
+        id: `guest-top-${dayNum}-${t.topic_number}`,
+        topic_number: t.topic_number,
+        title: t.title,
+        description: t.description,
+        estimated_minutes: t.estimated_minutes,
+        status: (dayNum === 1 && t.topic_number === 1 ? "in_progress" : "not_started") as "in_progress" | "not_started",
+      }));
+
+      return {
+        id: `guest-day-${dayNum}`,
+        day_number: dayNum,
+        title: d.title,
+        description: d.description,
+        learning_objectives: d.learning_objectives,
+        status: (dayNum === 1 ? "in_progress" : "not_started") as "in_progress" | "not_started",
+        topics,
+      };
+    });
+
     setRoadmapDays(localDays);
     setSelectedDayId(localDays[0].id);
     setSelectedTopicId(localDays[0].topics[0].id);
@@ -214,14 +227,28 @@ export default function Home() {
             description: d.description,
             learning_objectives: d.learning_objectives || [],
             status: d.status || "not_started",
-            topics: [],
+            topics: (d.topics || []).map((t: any) => ({
+              id: t.id,
+              topic_number: t.topic_number,
+              title: t.title,
+              description: t.description,
+              estimated_minutes: t.estimated_minutes,
+              status: t.status || "not_started",
+            })),
           }));
           setRoadmapDays(mappedDays);
+          setIsGeneratingRoadmap(false);
 
           if (mappedDays.length > 0) {
             const firstDay = mappedDays[0];
             setSelectedDayId(firstDay.id);
-            await handleFetchDayTopics(res.roadmap.id, firstDay.id);
+            if (firstDay.topics && firstDay.topics.length > 0) {
+              const firstTopic = firstDay.topics[0];
+              setSelectedTopicId(firstTopic.id);
+              handleFetchLesson(firstTopic.id, firstTopic.title);
+            } else {
+              handleFetchDayTopics(res.roadmap.id, firstDay.id);
+            }
           }
           return;
         }
@@ -300,7 +327,15 @@ export default function Home() {
 
       // 2. Direct Supabase topics persistence
       if (rId && dId && !dId.startsWith("guest-")) {
-        const topics = await saveDayTopicsToSupabase(dId, rId, dailyHours);
+        const currentDay = roadmapDays.find((d) => d.id === dId);
+        const topics = await saveDayTopicsToSupabase(
+          dId,
+          rId,
+          dailyHours,
+          domain,
+          currentDay?.day_number || 1,
+          currentDay?.title || ""
+        );
         if (topics && topics.length > 0) {
           setRoadmapDays((prev) =>
             prev.map((d) =>
@@ -336,6 +371,8 @@ export default function Home() {
 
   // Trigger Agent 3: Daily Teacher Agent
   const handleFetchLesson = async (tId: string, topicTitle?: string) => {
+    if (!tId || inFlightLessonRef.current[tId]) return;
+    inFlightLessonRef.current[tId] = true;
     setIsLoadingLesson(true);
     try {
       // 1. Try FastAPI backend if active
@@ -354,7 +391,12 @@ export default function Home() {
       // 2. Direct Supabase lesson retrieval / persistence
       if (tId && !tId.startsWith("guest-") && tId !== "mock") {
         const resolvedTitle = topicTitle || selectedTopic?.title || "Applied Architecture & Invariants";
-        const lesson = await getOrSaveLessonFromSupabase(tId, resolvedTitle, domain);
+        const lesson = await getOrSaveLessonFromSupabase(
+          tId,
+          resolvedTitle,
+          domain,
+          selectedTopic?.description || ""
+        );
         if (lesson && lesson.content_markdown) {
           setCurrentLesson(lesson);
           if (currentUser?.id) {
@@ -365,55 +407,23 @@ export default function Home() {
       }
 
       // 3. Fallback mock lesson
-      loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
+      await loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
     } catch (err) {
       console.warn("Agent 3 fetch error:", err);
-      loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
+      await loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
     } finally {
+      delete inFlightLessonRef.current[tId];
       setIsLoadingLesson(false);
     }
   };
 
-  const loadMockLesson = (title: string) => {
-    setCurrentLesson({
-      topic_id: "mock",
-      content_markdown: `# ${title}\n\n## 1. Conceptual Framework & Mental Models\n\nIn this module on **${domain}**, we construct the fundamental invariants and failure boundaries necessary for mission-critical software.\n\n### Key Invariants\n- **Separation of Concerns**: Decouple state representation from execution protocols.\n- **Fault Isolation**: Bound blast radius when unexpected network partitions or crash-stops occur.\n- **Idempotence & Total Order**: Ensure operations yield identical results regardless of retry frequency or jitter.`,
-      practical_examples: [
-        {
-          language: "python",
-          title: "Production-Grade Resilient Engine",
-          code: `import time\nfrom typing import Dict, Any\n\nclass ResilientEngine:\n    def __init__(self, max_retries: int = 3, backoff: float = 1.5):\n        self.max_retries = max_retries\n        self.backoff = backoff\n\n    def execute(self, payload: Dict[str, Any]) -> Dict[str, Any]:\n        delay = 0.2\n        for attempt in range(1, self.max_retries + 1):\n            try:\n                # Idempotent state machine transition\n                return {"status": "success", "processed_at": time.time()}\n            except Exception as err:\n                if attempt == self.max_retries:\n                    raise err\n                time.sleep(delay)\n                delay *= self.backoff`,
-        },
-      ],
-      citations: [
-        {
-          title: `Official Documentation & RFC: ${domain}`,
-          url: "https://docs.kernel.org",
-          source_type: "Official Specification",
-          snippet: "Defines authoritative protocol lifecycle, wire formats, and consistency invariants.",
-        },
-        {
-          title: "Designing Data-Intensive Applications (Martin Kleppmann)",
-          url: "https://dataintensive.net",
-          source_type: "Seminal Textbook",
-          snippet: "Chapter 9: Consistency, consensus, total order broadcast, and linearizability.",
-        },
-      ],
-      recommended_courses: [
-        {
-          title: `MIT 6.824: Distributed Systems Engineering`,
-          platform: "MIT OpenCourseWare",
-          url: "https://ocw.mit.edu",
-          level: "Advanced",
-        },
-        {
-          title: `Mastering ${domain}: Architecture to Production`,
-          platform: "Coursera / Stanford Online",
-          url: "https://coursera.org",
-          level: "Intermediate to Advanced",
-        },
-      ],
-    });
+  const loadMockLesson = async (title: string) => {
+    try {
+      const lesson = await getOrSaveLessonFromSupabase("mock", title, domain, selectedTopic?.description);
+      setCurrentLesson(lesson);
+    } catch (e) {
+      console.warn("Error loading lesson:", e);
+    }
   };
 
   const copyCode = (code: string, index: number) => {
@@ -700,7 +710,7 @@ export default function Home() {
                           </span>
                           <div>
                             <h3 className="font-bold text-sm text-zinc-100 leading-snug">
-                              Day {day.day_number}: {day.title}
+                              {day.title.startsWith(`Day ${day.day_number}:`) ? day.title : `Day ${day.day_number}: ${day.title}`}
                             </h3>
                             <p className="text-xs text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
                               {day.description}

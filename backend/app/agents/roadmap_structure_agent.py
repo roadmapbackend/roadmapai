@@ -22,18 +22,22 @@ def run_roadmap_structure_agent(
 
     if llm:
         system_prompt = (
-            "You are the Roadmap Structure Agent (Root Planner) for Roadmap.ai. "
-            "Your job is to take a domain or syllabus, total days, and daily hours, "
-            "and create a master roadmap partitioned strictly into days (Day 1 ... Day N). "
-            "Each day must have a clear title, description, and 3 key learning objectives. "
+            "You are the universal Roadmap Structure Agent (Root Planner) for Roadmap.ai. "
+            "You design world-class, rigorous, chronological learning roadmaps for ANY subject, skill, craft, science, or discipline "
+            "(e.g. Computer Science, Music, Organic Chemistry, Kubernetes, Digital Marketing, Quantum Computing, Guitar, Neuroscience, French, etc.). "
+            "Given a subject, total days (N), and daily study commitment (H hours/day): "
+            "1. Generate an exact N-day sequence (from Day 1 to Day N) tailored specifically to the subject matter. "
+            "2. Adapt the depth of daily scope realistically to the learner's allocated daily hours. "
+            "3. Structure a progressive learning arc: foundational mental models -> core mechanics & workflows -> intermediate applications -> advanced nuances & diagnostics -> capstone synthesis. "
+            "4. Every day must have a distinct, subject-tailored title (e.g. 'Day 1: Harmonic Foundations & Interval Construction'), a detailed description, and exactly 3 concrete, measurable learning objectives. "
             "Return valid JSON matching the RoadmapStructurePlan schema."
         )
         human_prompt = (
-            f"Domain / Syllabus: {domain_context}\n"
+            f"Topic / Subject: {domain_context}\n"
             f"Total Duration: {total_days} days\n"
             f"Daily Commitment: {daily_hours} hours/day\n"
             f"Learner Skill Level: {skill_level}\n\n"
-            f"Generate a strict {total_days}-day chronological progression from fundamentals to production mastery."
+            f"Generate a customized, comprehensive {total_days}-day roadmap where each day reflects {daily_hours} hours of study on {domain_context}."
         )
 
         try:
@@ -52,33 +56,10 @@ def run_roadmap_structure_agent(
         except Exception as err:
             print(f"[Agent 1] LLM invocation error (falling back): {err}")
 
-    # Heuristic fallback if no LLM key or LLM error
+    # Domain-aware fallback if LLM is rate-limited (429) or offline
     if not days:
-        domain_clean = domain_context.strip()
-        for i in range(1, total_days + 1):
-            if i == 1:
-                title = f"Day 1: Foundations & Core Architecture"
-                desc = f"Baseline mental models, terminology, and setup for {domain_clean}."
-                objectives = ["Core terminology", "Architectural paradigms", "Environment setup"]
-            elif i == total_days:
-                title = f"Day {i}: Capstone Integration & Real-World Milestone"
-                desc = f"Building an end-to-end production-grade milestone for {domain_clean}."
-                objectives = ["Capstone implementation", "Failure testing & benchmarks", "Production review"]
-            elif i <= total_days // 2:
-                title = f"Day {i}: Applied Implementation & Core Patterns (Part {i})"
-                desc = f"Deep dive into design patterns and hands-on mechanics."
-                objectives = [f"Master component {i}", "Implement practical workflows", "Handle error boundaries"]
-            else:
-                title = f"Day {i}: Advanced Scaling & System Hardening (Part {i})"
-                desc = f"Performance tuning, concurrency boundaries, and trade-offs."
-                objectives = ["Mitigate bottlenecks", "Evaluate architectural trade-offs", "Edge case resilience"]
-
-            days.append({
-                "day_number": i,
-                "title": title,
-                "description": desc,
-                "learning_objectives": objectives
-            })
+        from app.agents.domain_templates import generate_domain_days
+        days = generate_domain_days(domain_context=domain_context, total_days=total_days)
 
     roadmap_title = f"{total_days}-Day Roadmap: {domain_context}"
     saved_data = save_roadmap_and_days(

@@ -11,68 +11,174 @@ def save_roadmap_and_days(
     days: List[Dict[str, Any]],
     metadata: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
-    supabase = get_supabase_admin()
-    
-    # 1. Insert master roadmap record
-    roadmap_res = supabase.table("roadmaps").insert({
-        "user_id": user_id,
-        "title": title,
-        "domain_context": domain_context,
-        "total_days": total_days,
-        "daily_hours_commitment": daily_hours,
-        "skill_level": skill_level,
-        "status": "active",
-        "metadata": metadata or {}
-    }).execute()
-    
-    roadmap = roadmap_res.data[0]
-    roadmap_id = roadmap["id"]
-    
-    # 2. Bulk insert days
-    day_records = []
-    for d in days:
-        day_records.append({
-            "roadmap_id": roadmap_id,
-            "day_number": d["day_number"],
-            "title": d["title"],
-            "description": d.get("description", ""),
-            "learning_objectives": d.get("learning_objectives", []),
-            "status": "in_progress" if d["day_number"] == 1 else "not_started"
-        })
+    try:
+        supabase = get_supabase_admin()
         
-    days_res = supabase.table("roadmap_days").insert(day_records).execute()
-    
-    return {
-        "roadmap": roadmap,
-        "days": days_res.data or []
-    }
+        # 1. Insert master roadmap record
+        roadmap_res = supabase.table("roadmaps").insert({
+            "user_id": user_id,
+            "title": title,
+            "domain_context": domain_context,
+            "total_days": total_days,
+            "daily_hours_commitment": daily_hours,
+            "skill_level": skill_level,
+            "status": "active",
+            "metadata": metadata or {}
+        }).execute()
+        
+        roadmap = roadmap_res.data[0]
+        roadmap_id = roadmap["id"]
+        
+        # 2. Bulk insert days
+        day_records = []
+        for d in days:
+            day_records.append({
+                "roadmap_id": roadmap_id,
+                "day_number": d["day_number"],
+                "title": d["title"],
+                "description": d.get("description", ""),
+                "learning_objectives": d.get("learning_objectives", []),
+                "status": "in_progress" if d["day_number"] == 1 else "not_started"
+            })
+            
+        days_res = supabase.table("roadmap_days").insert(day_records).execute()
+        inserted_days = days_res.data or []
+        
+        # 3. Bulk insert structured topics for ALL days
+        from app.agents.domain_templates import generate_domain_topics
+        all_topic_records = []
+        for d in inserted_days:
+            day_topics = generate_domain_topics(
+                day_title=d["title"],
+                daily_hours=daily_hours,
+                domain_context=domain_context,
+                day_number=d["day_number"]
+            )
+            for t in day_topics:
+                all_topic_records.append({
+                    "day_id": d["id"],
+                    "roadmap_id": roadmap_id,
+                    "topic_number": t["topic_number"],
+                    "title": t["title"],
+                    "description": t.get("description", ""),
+                    "estimated_minutes": t.get("estimated_minutes", 40),
+                    "status": "not_started"
+                })
+                
+        inserted_topics = []
+        if all_topic_records:
+            topics_res = supabase.table("roadmap_topics").insert(all_topic_records).execute()
+            inserted_topics = topics_res.data or []
+
+        # Group topics into each day node
+        topics_by_day = {}
+        for t in inserted_topics:
+            d_id = t["day_id"]
+            if d_id not in topics_by_day:
+                topics_by_day[d_id] = []
+            topics_by_day[d_id].append(t)
+            
+        for d in inserted_days:
+            d["topics"] = topics_by_day.get(d["id"], [])
+            
+        return {
+            "roadmap": roadmap,
+            "days": inserted_days
+        }
+    except Exception as exc:
+        print(f"[RoadmapStore] Database storage notice (returning in-memory roadmap): {exc}")
+        import uuid
+        from app.agents.domain_templates import generate_domain_topics
+        mock_roadmap_id = str(uuid.uuid4())
+        mock_days = []
+        for d in days:
+            day_id = str(uuid.uuid4())
+            day_topics = generate_domain_topics(
+                day_title=d["title"],
+                daily_hours=daily_hours,
+                domain_context=domain_context,
+                day_number=d["day_number"]
+            )
+            formatted_topics = []
+            for t in day_topics:
+                formatted_topics.append({
+                    "id": str(uuid.uuid4()),
+                    "day_id": day_id,
+                    "roadmap_id": mock_roadmap_id,
+                    "topic_number": t["topic_number"],
+                    "title": t["title"],
+                    "description": t.get("description", ""),
+                    "estimated_minutes": t.get("estimated_minutes", 40),
+                    "status": "not_started"
+                })
+            mock_days.append({
+                "id": day_id,
+                "roadmap_id": mock_roadmap_id,
+                "day_number": d["day_number"],
+                "title": d["title"],
+                "description": d.get("description", ""),
+                "learning_objectives": d.get("learning_objectives", []),
+                "status": "in_progress" if d["day_number"] == 1 else "not_started",
+                "topics": formatted_topics
+            })
+        return {
+            "roadmap": {
+                "id": mock_roadmap_id,
+                "user_id": user_id,
+                "title": title,
+                "domain_context": domain_context,
+                "total_days": total_days,
+                "daily_hours_commitment": daily_hours,
+                "skill_level": skill_level,
+                "status": "active",
+                "metadata": metadata or {}
+            },
+            "days": mock_days
+        }
 
 def save_day_topics(
     day_id: str,
     roadmap_id: str,
     topics: List[Dict[str, Any]]
 ) -> List[Dict[str, Any]]:
-    supabase = get_supabase_admin()
-    
-    # Check if topics already exist
-    existing = supabase.table("roadmap_topics").select("*").eq("day_id", day_id).order("topic_number").execute()
-    if existing.data and len(existing.data) > 0:
-        return existing.data
+    try:
+        supabase = get_supabase_admin()
         
-    topic_records = []
-    for t in topics:
-        topic_records.append({
-            "day_id": day_id,
-            "roadmap_id": roadmap_id,
-            "topic_number": t["topic_number"],
-            "title": t["title"],
-            "description": t.get("description", ""),
-            "estimated_minutes": t.get("estimated_minutes", 45),
-            "status": "not_started"
-        })
-        
-    res = supabase.table("roadmap_topics").insert(topic_records).execute()
-    return res.data or []
+        # Check if topics already exist
+        existing = supabase.table("roadmap_topics").select("*").eq("day_id", day_id).order("topic_number").execute()
+        if existing.data and len(existing.data) > 0:
+            return existing.data
+            
+        topic_records = []
+        for t in topics:
+            topic_records.append({
+                "day_id": day_id,
+                "roadmap_id": roadmap_id,
+                "topic_number": t["topic_number"],
+                "title": t["title"],
+                "description": t.get("description", ""),
+                "estimated_minutes": t.get("estimated_minutes", 45),
+                "status": "not_started"
+            })
+            
+        res = supabase.table("roadmap_topics").insert(topic_records).execute()
+        return res.data or []
+    except Exception as exc:
+        print(f"[RoadmapStore] Supabase save_day_topics error: {exc}")
+        import uuid
+        fallback = []
+        for t in topics:
+            fallback.append({
+                "id": str(uuid.uuid4()),
+                "day_id": day_id,
+                "roadmap_id": roadmap_id,
+                "topic_number": t["topic_number"],
+                "title": t["title"],
+                "description": t.get("description", ""),
+                "estimated_minutes": t.get("estimated_minutes", 45),
+                "status": "not_started"
+            })
+        return fallback
 
 def save_topic_lesson(
     topic_id: str,
@@ -81,17 +187,20 @@ def save_topic_lesson(
     citations: List[Dict[str, Any]],
     recommended_courses: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
-    supabase = get_supabase_admin()
-    
-    res = supabase.table("topic_lessons").upsert({
+    lesson_payload = {
         "topic_id": topic_id,
         "content_markdown": content_markdown,
         "practical_examples": practical_examples,
         "citations": citations,
         "recommended_courses": recommended_courses
-    }, on_conflict="topic_id").execute()
-    
-    return res.data[0] if res.data else {}
+    }
+    try:
+        supabase = get_supabase_admin()
+        res = supabase.table("topic_lessons").upsert(lesson_payload, on_conflict="topic_id").execute()
+        return res.data[0] if res.data else lesson_payload
+    except Exception as exc:
+        print(f"[RoadmapStore] Supabase save_topic_lesson notice: {exc}")
+        return lesson_payload
 
 def get_roadmap_tree(roadmap_id: str) -> Dict[str, Any]:
     supabase = get_supabase_admin()

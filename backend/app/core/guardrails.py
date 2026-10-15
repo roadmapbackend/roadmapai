@@ -35,34 +35,40 @@ def record_token_usage(user_id: str, prompt_tokens: int, completion_tokens: int,
     """
     Increments token usage in Supabase and records an agent audit log.
     """
-    supabase = get_supabase_admin()
-    total_tokens = prompt_tokens + completion_tokens
-    
-    # 1. Increment token budget atomically
     try:
-        supabase.rpc("increment_token_budget", {
-            "p_user_id": user_id,
-            "p_tokens": total_tokens
-        }).execute()
-    except Exception:
-        # Fallback direct update
-        current = supabase.table("token_budgets").select("tokens_used_current_cycle").eq("user_id", user_id).execute()
-        current_used = current.data[0]["tokens_used_current_cycle"] if current.data else 0
-        supabase.table("token_budgets").upsert({
+        supabase = get_supabase_admin()
+        total_tokens = prompt_tokens + completion_tokens
+        
+        # 1. Increment token budget atomically
+        try:
+            supabase.rpc("increment_token_budget", {
+                "p_user_id": user_id,
+                "p_tokens": total_tokens
+            }).execute()
+        except Exception:
+            # Fallback direct update
+            try:
+                current = supabase.table("token_budgets").select("tokens_used_current_cycle").eq("user_id", user_id).execute()
+                current_used = current.data[0]["tokens_used_current_cycle"] if current.data else 0
+                supabase.table("token_budgets").upsert({
+                    "user_id": user_id,
+                    "tokens_used_current_cycle": current_used + total_tokens
+                }).execute()
+            except Exception:
+                pass
+        
+        # 2. Insert audit execution log
+        supabase.table("agent_execution_logs").insert({
             "user_id": user_id,
-            "tokens_used_current_cycle": current_used + total_tokens
+            "agent_name": agent_name,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_cost_usd": (prompt_tokens * 0.0000015) + (completion_tokens * 0.000002),
+            "latency_ms": latency_ms,
+            "status": "success"
         }).execute()
-    
-    # 2. Insert audit execution log
-    supabase.table("agent_execution_logs").insert({
-        "user_id": user_id,
-        "agent_name": agent_name,
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_cost_usd": (prompt_tokens * 0.0000015) + (completion_tokens * 0.000002),
-        "latency_ms": latency_ms,
-        "status": "success"
-    }).execute()
+    except Exception as exc:
+        print(f"[Guardrails] record_token_usage notice (non-fatal): {exc}")
 
 def enforce_iteration_and_token_budget(state: Dict[str, Any]) -> Dict[str, Any]:
     """

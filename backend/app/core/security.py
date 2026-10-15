@@ -17,7 +17,7 @@ def get_current_user_id(credentials: Optional[HTTPAuthorizationCredentials] = De
         return "00000000-0000-0000-0000-000000000001"
     
     token = credentials.credentials
-    if settings.SUPABASE_JWT_SECRET:
+    if settings.SUPABASE_JWT_SECRET and settings.SUPABASE_JWT_SECRET != "your-supabase-jwt-secret-here":
         try:
             payload = jwt.decode(
                 token,

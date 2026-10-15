@@ -11,7 +11,8 @@ def run_daily_structure_agent(
     day_id: str,
     day_number: int,
     day_title: str,
-    daily_hours: float
+    daily_hours: float,
+    domain_context: str = "general"
 ) -> List[Dict[str, Any]]:
     """
     Agent 2: Daily Structure Agent (Daily Curriculum Designer)
@@ -20,20 +21,25 @@ def run_daily_structure_agent(
     llm = get_llm(temperature=0.2)
     topics = []
 
+    total_minutes = int(daily_hours * 60)
     if llm:
         system_prompt = (
-            "You are the Daily Structure Agent for Roadmap.ai. "
-            "Your job is to take a specific day title and the user's daily study hours, "
-            "and break that day down into 2-4 discrete subtopics (Topic 1 ... Topic N). "
-            "Each topic must have a title, short description, and estimated study time in minutes. "
-            f"The sum of all estimated_minutes should closely match {int(daily_hours * 60)} minutes total. "
+            "You are the universal Daily Structure Agent for Roadmap.ai. "
+            "Your objective is to deconstruct a specific day's theme into 2 to 4 progressive, focused study sessions (topics) "
+            "for ANY subject or craft (software, mathematics, arts, sciences, languages, humanities, business, etc.). "
+            f"The learner has committed {daily_hours} hours today ({total_minutes} minutes total). "
+            "Requirements:\n"
+            f"1. Break the day into 2-4 subtopics where the sum of `estimated_minutes` across all topics strictly equals approx {total_minutes} minutes.\n"
+            "2. Each topic title must be highly specific, professional, and directly relevant to the day's theme and subject.\n"
+            "3. Each description must clearly explain the key principles, hands-on drills, or conceptual challenges covered in that session.\n"
             "Return valid JSON matching the DailyStructurePlan schema."
         )
         human_prompt = (
+            f"Subject: {domain_context}\n"
             f"Day Number: {day_number}\n"
-            f"Day Objective: {day_title}\n"
-            f"Allocated Study Time: {daily_hours} hours ({int(daily_hours * 60)} minutes)\n\n"
-            "Generate the structured list of subtopics."
+            f"Day Theme: {day_title}\n"
+            f"Allocated Study Time: {daily_hours} hours ({total_minutes} minutes total)\n\n"
+            f"Deconstruct Day {day_number} into 2-4 substantive subtopics tailored to {domain_context} that sum to {total_minutes} minutes."
         )
 
         try:
@@ -52,27 +58,15 @@ def run_daily_structure_agent(
         except Exception as err:
             print(f"[Agent 2] LLM invocation error (falling back): {err}")
 
-    # Heuristic fallback if no LLM key or LLM error
+    # Domain-aware fallback if LLM is rate-limited (429) or offline
     if not topics:
-        total_minutes = int(daily_hours * 60)
-        topic_count = max(2, min(4, int(daily_hours * 1.5)))
-        mins_per_topic = total_minutes // topic_count
-
-        topic_templates = [
-            ("Core Theory & Mental Model", f"Deep dive into the fundamental mechanics of {day_title}."),
-            ("Hands-On Implementation & Patterns", "Writing working code, exploring design patterns, and exercises."),
-            ("Edge Cases, Failure Modes & Diagnostics", "Debugging common failure states, concurrency issues, and benchmarks."),
-            ("Synthesis & Milestone Challenge", "Validating retention and building a mini-project checkpoint.")
-        ]
-
-        for idx in range(topic_count):
-            suffix, desc = topic_templates[idx % len(topic_templates)]
-            topics.append({
-                "topic_number": idx + 1,
-                "title": f"Topic {idx + 1}: {suffix}",
-                "description": desc,
-                "estimated_minutes": mins_per_topic
-            })
+        from app.agents.domain_templates import generate_domain_topics
+        topics = generate_domain_topics(
+            day_title=day_title,
+            daily_hours=daily_hours,
+            domain_context=domain_context,
+            day_number=day_number
+        )
 
     saved_topics = save_day_topics(
         day_id=day_id,

@@ -29,20 +29,27 @@ def run_daily_teacher_agent(
 
     if llm:
         system_prompt = (
-            "You are the Daily Teacher Agent for Roadmap.ai. "
-            "Your objective is to provide a master-class technical lesson for a specific topic. "
-            "You must provide:\n"
-            "1. Comprehensive, well-formatted Markdown lesson content with deep intuition, diagrams, and best practices.\n"
-            "2. Production-grade practical code implementation examples with comments.\n"
-            "3. Verified citation sources (real academic papers, RFCs, official specifications, seminal textbooks).\n"
-            "4. Highly rated recommended online courses (Coursera, edX, MIT OpenCourseWare, Stanford, etc.).\n"
+            "You are the universal Daily Teacher Agent for Roadmap.ai. "
+            "Your objective is to provide a comprehensive, master-class technical or conceptual lesson for ANY subject "
+            "(computer science, mathematics, music, physics, biology, literature, arts, languages, business, etc.). "
+            "You must return:\n"
+            "1. `content_markdown`: In-depth, well-structured Markdown tutorial containing:\n"
+            "   - Conceptual Framework & Mental Models (foundational intuition and domain invariants)\n"
+            "   - Technical / Theoretical Breakdown (mechanics, principles, or formulas)\n"
+            "   - Step-by-Step Practical Methodology (how to execute or apply this knowledge)\n"
+            "   - Best Practices, Edge Cases & Common Pitfalls\n"
+            "2. `practical_examples`: Concrete, applied implementation:\n"
+            "   - For programming/technical subjects: Complete, working, commented code snippet.\n"
+            "   - For non-programming subjects (music, languages, sciences, arts, business): A concrete, hands-on applied exercise, worked problem, study protocol, or case study with `language` set appropriately (e.g. 'text', 'markdown', 'python', 'music').\n"
+            "3. `citations`: 2-3 genuine, verified citation sources (seminal textbooks, academic papers, official specifications, RFCs, authoritative manuals).\n"
+            "4. `recommended_courses`: 2-3 top-rated real courses or academic lecture series (Coursera, edX, MIT OpenCourseWare, Stanford, etc.) specifically relevant to this topic.\n"
             "Return valid JSON matching the LessonDelivery schema."
         )
         human_prompt = (
-            f"Domain: {domain_context}\n"
+            f"Subject: {domain_context}\n"
             f"Topic Title: {topic_title}\n"
             f"Topic Description: {topic_desc}\n\n"
-            "Deliver the complete lesson, code examples, citations, and recommended courses."
+            f"Deliver an authoritative, comprehensive lesson, practical exercises, verified citations, and course recommendations for {topic_title} in {domain_context}."
         )
 
         try:
@@ -60,86 +67,14 @@ def run_daily_teacher_agent(
         except Exception as err:
             print(f"[Agent 3] LLM invocation error (falling back): {err}")
 
-    # Fallback if no LLM key or LLM error
+    # Domain-aware fallback if LLM is rate-limited (429) or offline
     if not lesson_data:
-        content_markdown = (
-            f"# {topic_title}\n\n"
-            f"## 1. Conceptual Framework & Mental Models\n\n"
-            f"In this module on **{domain_context}**, we explore {topic_desc.lower()}.\n\n"
-            "### Core Principles\n"
-            "- **Separation of Concerns**: Decouple state representation from execution protocols.\n"
-            "- **Fault Isolation**: Bound blast radius when unexpected inputs or latency spikes occur.\n"
-            "- **Idempotence & Predictability**: Ensure operations yield identical results regardless of retry frequency.\n\n"
-            "## 2. In-Depth Technical Breakdown\n\n"
-            "When engineering production systems, mental models should reflect reality rather than idealized conditions. "
-            "Pay special attention to network asynchronous delays, clock skews, and concurrency contention boundaries.\n\n"
-            "## 3. Best Practices & Common Pitfalls\n"
-            "1. **Never assume synchronous certainty**: Always design fallback paths.\n"
-            "2. **Monitor latency percentiles (p99/p99.9)** rather than averages.\n"
-            "3. **Validate schemas strictly** at service entry points."
+        from app.agents.domain_templates import generate_domain_lesson
+        lesson_data = generate_domain_lesson(
+            topic_title=topic_title,
+            domain_context=domain_context,
+            topic_desc=topic_desc
         )
-
-        practical_examples = [
-            {
-                "language": "python",
-                "title": "Resilient Pattern Implementation",
-                "code": (
-                    "import time\n"
-                    "from typing import Optional, Dict, Any\n\n"
-                    "class ResilientHandler:\n"
-                    "    def __init__(self, max_retries: int = 3, backoff_factor: float = 1.5):\n"
-                    "        self.max_retries = max_retries\n"
-                    "        self.backoff_factor = backoff_factor\n\n"
-                    "    def execute(self, action_func, *args, **kwargs) -> Optional[Any]:\n"
-                    "        delay = 0.5\n"
-                    "        for attempt in range(1, self.max_retries + 1):\n"
-                    "            try:\n"
-                    "                return action_func(*args, **kwargs)\n"
-                    "            except Exception as err:\n"
-                    "                if attempt == self.max_retries:\n"
-                    "                    raise err\n"
-                    "                time.sleep(delay)\n"
-                    "                delay *= self.backoff_factor\n"
-                )
-            }
-        ]
-
-        citations = [
-            {
-                "title": f"Official Architecture Specification: {domain_context}",
-                "url": "https://docs.kernel.org",
-                "source_type": "Official Specification",
-                "snippet": "Authoritative standard defining protocol lifecycle and state synchronization rules."
-            },
-            {
-                "title": "Designing Data-Intensive Applications (Martin Kleppmann)",
-                "url": "https://dataintensive.net",
-                "source_type": "Seminal Textbook",
-                "snippet": "Comprehensive analysis of reliability, scalability, and maintainability paradigms."
-            }
-        ]
-
-        recommended_courses = [
-            {
-                "title": f"Mastering {domain_context}: From Zero to Production",
-                "platform": "Coursera / edX",
-                "url": "https://coursera.org",
-                "level": "Intermediate to Advanced"
-            },
-            {
-                "title": "Distributed Systems & Cloud Architecture Specialization",
-                "platform": "MIT OpenCourseWare",
-                "url": "https://ocw.mit.edu",
-                "level": "Advanced"
-            }
-        ]
-
-        lesson_data = {
-            "content_markdown": content_markdown,
-            "practical_examples": practical_examples,
-            "citations": citations,
-            "recommended_courses": recommended_courses
-        }
 
     saved_lesson = save_topic_lesson(
         topic_id=topic_id,

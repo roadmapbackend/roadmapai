@@ -64,12 +64,13 @@ async def structure_day(
     supabase = get_supabase_admin()
     
     # Query Day & Roadmap context
-    day_res = supabase.table("roadmap_days").select("*, roadmaps!inner(daily_hours_commitment)").eq("id", day_id).execute()
+    day_res = supabase.table("roadmap_days").select("*, roadmaps!inner(daily_hours_commitment, domain_context)").eq("id", day_id).execute()
     if not day_res.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Day not found")
         
     day = day_res.data[0]
     daily_hours = day.get("roadmaps", {}).get("daily_hours_commitment", 2.0)
+    domain_context = day.get("roadmaps", {}).get("domain_context", "general")
     
     topics = run_daily_structure_agent(
         user_id=user_id,
@@ -77,7 +78,8 @@ async def structure_day(
         day_id=day_id,
         day_number=day["day_number"],
         day_title=day["title"],
-        daily_hours=float(daily_hours)
+        daily_hours=float(daily_hours),
+        domain_context=domain_context
     )
     return topics
 
