@@ -2,10 +2,10 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import AntigravityCard from "@/components/AntigravityCard";
 
 export default function CurriculumTreePage() {
   const [activeMode, setActiveMode] = useState<"sequential" | "nonlinear">("nonlinear");
-  const [selectedDay, setSelectedDay] = useState(1);
 
   const roadmap = {
     title: "14-Day Intensive: Distributed Systems & Consensus Engines",
@@ -60,138 +60,147 @@ export default function CurriculumTreePage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#090a0f] text-zinc-100 p-6 sm:p-10 font-sans">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 border-b border-zinc-800 gap-4">
+    <div className="min-h-screen bg-[#06070a] text-zinc-100 p-6 sm:p-10 font-sans relative overflow-hidden bg-dot-grid">
+      {/* Ambient Lighting */}
+      <div className="pointer-events-none fixed -top-40 -left-40 w-[600px] h-[600px] bg-indigo-600/12 rounded-full blur-[140px] animate-pulse-glow" />
+      <div className="pointer-events-none fixed top-1/3 -right-40 w-[550px] h-[550px] bg-cyan-500/10 rounded-full blur-[150px]" />
+
+      <div className="max-w-6xl mx-auto relative z-10">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-6 border-b border-white/[0.08] gap-4">
           <div>
-            <Link href="/" className="text-xs font-mono text-indigo-400 hover:underline mb-1 inline-block">
+            <Link href="/" className="text-xs font-mono text-indigo-400 hover:text-indigo-300 transition-colors mb-1.5 inline-block">
               ← Back to Overview
             </Link>
-            <h1 className="text-2xl font-bold text-white">{roadmap.title}</h1>
-            <p className="text-xs text-zinc-400 mt-1">
-              Hierarchical Roadmap Tree: {roadmap.totalDays} Days · {roadmap.dailyHours} hrs/day
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">{roadmap.title}</h1>
+            <p className="text-xs text-zinc-400 mt-1 font-mono">
+              Spatial Roadmap Tree: {roadmap.totalDays} Days · {roadmap.dailyHours} hrs/day
             </p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="text-right">
-              <span className="text-[11px] font-mono text-zinc-400">Total Progress</span>
+            <div className="text-right glass-panel px-4 py-2 rounded-xl">
+              <span className="text-[10px] font-mono text-zinc-400 uppercase">Mastery Progress</span>
               <div className="text-lg font-bold text-emerald-400">{roadmap.progress}%</div>
             </div>
           </div>
         </div>
 
         {/* Navigation Mode Bar */}
-        <div className="mt-6 flex items-center justify-between p-3 rounded-xl bg-zinc-900/60 border border-zinc-800">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-mono text-zinc-400">Mode:</span>
+        <div className="mt-6 flex items-center justify-between p-3.5 rounded-2xl glass-panel">
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-zinc-400 uppercase font-semibold">Mode:</span>
             <button
               onClick={() => setActiveMode("nonlinear")}
-              className={`px-3 py-1 rounded-md text-xs transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs transition-all font-semibold ${
                 activeMode === "nonlinear"
-                  ? "bg-indigo-600 text-white font-semibold"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              Node-Select Mode (Click any Topic)
+              Node-Select Mode (Arbitrary)
             </button>
             <button
               onClick={() => setActiveMode("sequential")}
-              className={`px-3 py-1 rounded-md text-xs transition-all ${
+              className={`px-3.5 py-1.5 rounded-xl text-xs transition-all font-semibold ${
                 activeMode === "sequential"
-                  ? "bg-indigo-600 text-white font-semibold"
+                  ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
-              Sequential Mode (Linear Progress)
+              Sequential Mode (Linear)
             </button>
           </div>
 
-          <span className="text-xs font-mono text-zinc-400 hidden sm:inline-block">
-            Powered by Agent 1 (Days) & Agent 2 (Topics)
+          <span className="text-xs font-mono text-zinc-400 hidden sm:inline-block glass-pill px-3 py-1 rounded-lg">
+            Agent 1 (Days) & Agent 2 (Topics)
           </span>
         </div>
 
-        {/* Tree Container */}
+        {/* Spatial Tree Container */}
         <div className="mt-8 space-y-6">
           {roadmap.days.map((day) => (
-            <div
+            <AntigravityCard
               key={day.dayNumber}
-              className={`p-6 rounded-2xl border transition-all ${
-                day.status === "completed"
-                  ? "bg-zinc-950/90 border-emerald-500/30"
-                  : day.status === "in_progress"
-                  ? "bg-zinc-900/90 border-indigo-500/50 shadow-xl ring-1 ring-indigo-500/30"
-                  : "bg-zinc-950/60 border-zinc-800/80 opacity-70"
-              }`}
+              intensity={8}
+              glowColor={day.status === "in_progress" ? "rgba(99, 102, 241, 0.25)" : "rgba(255, 255, 255, 0.05)"}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-3.5">
-                  <span
-                    className={`h-8 w-8 rounded-lg text-xs font-mono font-bold flex items-center justify-center shrink-0 ${
-                      day.status === "completed"
-                        ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                        : day.status === "in_progress"
-                        ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                        : "bg-zinc-800 text-zinc-400"
-                    }`}
-                  >
-                    D{day.dayNumber}
-                  </span>
-                  <div>
-                    <h2 className="text-base font-bold text-white">
-                      Day {day.dayNumber}: {day.title}
-                    </h2>
-                    <p className="text-xs text-zinc-400 mt-1 max-w-2xl">{day.desc}</p>
+              <div
+                className={`p-6 sm:p-7 rounded-3xl transition-all duration-300 ${
+                  day.status === "completed"
+                    ? "glass-panel border-emerald-500/30"
+                    : day.status === "in_progress"
+                    ? "glass-panel-elevated ring-1 ring-indigo-500/40"
+                    : "glass-panel opacity-70"
+                }`}
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4">
+                    <span
+                      className={`h-9 w-9 rounded-xl text-xs font-mono font-bold flex items-center justify-center shrink-0 shadow-md ${
+                        day.status === "completed"
+                          ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                          : day.status === "in_progress"
+                          ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-indigo-500/20"
+                          : "bg-white/[0.05] text-zinc-400 border border-white/10"
+                      }`}
+                    >
+                      D{day.dayNumber}
+                    </span>
+                    <div>
+                      <h2 className="text-base sm:text-lg font-bold text-white">
+                        Day {day.dayNumber}: {day.title}
+                      </h2>
+                      <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">{day.desc}</p>
+                    </div>
                   </div>
+
+                  <span className="text-xs font-mono text-zinc-300 glass-pill px-3 py-1 rounded-lg">
+                    {day.topics.length} Subtopics
+                  </span>
                 </div>
 
-                <span className="text-xs font-mono text-zinc-400">
-                  {day.topics.length} Subtopics
-                </span>
-              </div>
-
-              {/* Subtopics Grid (Agent 2 Output) */}
-              <div className="mt-6 pt-4 border-t border-zinc-800/80 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {day.topics.map((t) => (
-                  <div
-                    key={t.number}
-                    className="p-3.5 rounded-xl bg-zinc-900/70 border border-zinc-800 hover:border-indigo-500/50 transition-all flex flex-col justify-between"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-1">
-                        <span>Topic {t.number}</span>
-                        <span>{t.minutes}m</span>
+                {/* Subtopics Grid (Agent 2 Output) */}
+                <div className="mt-6 pt-5 border-t border-white/[0.08] grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                  {day.topics.map((t) => (
+                    <div
+                      key={t.number}
+                      className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] hover:border-indigo-400/40 hover:bg-white/[0.02] transition-all duration-200 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-mono text-zinc-400 mb-1.5">
+                          <span className="text-indigo-300 font-semibold">Topic {t.number}</span>
+                          <span className="glass-pill px-2 py-0.5 rounded text-[10px]">{t.minutes}m</span>
+                        </div>
+                        <h4 className="text-xs font-bold text-zinc-200 line-clamp-2">
+                          {t.title}
+                        </h4>
                       </div>
-                      <h4 className="text-xs font-semibold text-zinc-200 line-clamp-2">
-                        {t.title}
-                      </h4>
-                    </div>
 
-                    <div className="mt-4 pt-2 border-t border-zinc-800/60 flex items-center justify-between">
-                      <span
-                        className={`text-[10px] font-mono px-2 py-0.5 rounded ${
-                          t.status === "completed"
-                            ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                            : t.status === "in_progress"
-                            ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                            : "bg-zinc-800 text-zinc-400"
-                        }`}
-                      >
-                        {t.status.replace("_", " ")}
-                      </span>
+                      <div className="mt-4 pt-3 border-t border-white/[0.06] flex items-center justify-between">
+                        <span
+                          className={`text-[10px] font-mono px-2.5 py-0.5 rounded-full ${
+                            t.status === "completed"
+                              ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/25"
+                              : t.status === "in_progress"
+                              ? "bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 animate-pulse"
+                              : "bg-white/[0.04] text-zinc-400 border border-white/[0.06]"
+                          }`}
+                        >
+                          {t.status.replace("_", " ")}
+                        </span>
 
-                      <Link
-                        href="/"
-                        className="text-xs font-medium text-indigo-400 hover:text-indigo-300"
-                      >
-                        Study →
-                      </Link>
+                        <Link
+                          href="/"
+                          className="text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+                        >
+                          Study Topic →
+                        </Link>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            </AntigravityCard>
           ))}
         </div>
       </div>
