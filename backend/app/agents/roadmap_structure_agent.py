@@ -22,7 +22,7 @@ def run_roadmap_structure_agent(
 
     if llm:
         system_prompt = (
-            "You are the universal Roadmap Structure Agent (Root Planner) for Roadmap.ai. "
+            "You are the universal Roadmap Structure Agent (Root Planner) for Daari. "
             "You design world-class, rigorous, chronological learning roadmaps for ANY subject, skill, craft, science, or discipline "
             "(e.g. Computer Science, Music, Organic Chemistry, Kubernetes, Digital Marketing, Quantum Computing, Guitar, Neuroscience, French, etc.). "
             "Given a subject, total days (N), and daily study commitment (H hours/day): "

@@ -11,6 +11,9 @@ from app.services.db import get_supabase_admin
 
 router = APIRouter()
 
+# These handlers make blocking AI and database calls. Plain "def" lets FastAPI run each
+# one in a worker thread; as "async def" a single slow call would freeze the server.
+
 class CreateRoadmapRequest(BaseModel):
     domain_context: str = Field(..., description="Field of study, syllabus outline, or topic")
     total_days: int = Field(..., ge=1, le=180, description="Total days allocated for the roadmap")
@@ -21,7 +24,7 @@ class UpdateTopicStatusRequest(BaseModel):
     status: str = Field(..., description="not_started, in_progress, completed")
 
 @router.post("/generate", response_model=Dict[str, Any])
-async def generate_roadmap(
+def generate_roadmap(
     req: CreateRoadmapRequest,
     user_id: str = Depends(get_current_user_id)
 ):
@@ -39,7 +42,7 @@ async def generate_roadmap(
     return result
 
 @router.get("/{roadmap_id}/tree", response_model=Dict[str, Any])
-async def get_tree(
+def get_tree(
     roadmap_id: str,
     user_id: str = Depends(get_current_user_id)
 ):
@@ -52,7 +55,7 @@ async def get_tree(
     return tree
 
 @router.post("/{roadmap_id}/day/{day_id}/structure", response_model=List[Dict[str, Any]])
-async def structure_day(
+def structure_day(
     roadmap_id: str,
     day_id: str,
     user_id: str = Depends(get_current_user_id)
@@ -79,12 +82,14 @@ async def structure_day(
         day_number=day["day_number"],
         day_title=day["title"],
         daily_hours=float(daily_hours),
-        domain_context=domain_context
+        domain_context=domain_context,
+        learning_objectives=day.get("learning_objectives") or [],
+        day_description=day.get("description") or ""
     )
     return topics
 
 @router.post("/topic/{topic_id}/teach", response_model=Dict[str, Any])
-async def teach_topic(
+def teach_topic(
     topic_id: str,
     user_id: str = Depends(get_current_user_id)
 ):
@@ -111,7 +116,7 @@ async def teach_topic(
     return lesson
 
 @router.patch("/topic/{topic_id}/status", response_model=Dict[str, Any])
-async def update_topic_status(
+def update_topic_status(
     topic_id: str,
     req: UpdateTopicStatusRequest,
     user_id: str = Depends(get_current_user_id)
@@ -124,7 +129,7 @@ async def update_topic_status(
     return res.data[0] if res.data else {}
 
 @router.get("/list", response_model=List[Dict[str, Any]])
-async def list_user_roadmaps(
+def list_user_roadmaps(
     user_id: str = Depends(get_current_user_id)
 ):
     supabase = get_supabase_admin()

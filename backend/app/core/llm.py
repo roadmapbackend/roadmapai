@@ -17,6 +17,8 @@ def get_llm(temperature: float = 0.3) -> Optional[BaseChatModel]:
             api_key=groq_key,
             model="llama-3.3-70b-versatile",
             temperature=temperature,
+            timeout=settings.LLM_TIMEOUT_SECONDS,
+            max_retries=1,
         )
 
     # 2. Check Google Gemini
@@ -25,21 +27,25 @@ def get_llm(temperature: float = 0.3) -> Optional[BaseChatModel]:
         import logging
         logging.getLogger("google_genai.models").setLevel(logging.ERROR)
         from langchain_google_genai import ChatGoogleGenerativeAI
-        primary_model = getattr(settings, "GEMINI_MODEL", None) or os.getenv("GEMINI_MODEL") or "gemini-3.5-flash-lite"
+        primary_model = getattr(settings, "GEMINI_MODEL", None) or os.getenv("GEMINI_MODEL") or "gemini-flash-lite-latest"
         
         primary_llm = ChatGoogleGenerativeAI(
             model=primary_model,
             google_api_key=google_key,
             temperature=temperature,
+            timeout=settings.LLM_TIMEOUT_SECONDS,
+            max_retries=1,  # the fallback models below are the retries
         )
         
         # Candidate fallback models with working quotas
-        fallback_models = [m for m in ["gemini-3.1-flash-lite", "gemini-3.5-flash"] if m != primary_model]
+        fallback_models = [m for m in ["gemini-flash-lite-latest", "gemini-3.1-flash-lite", "gemini-3.5-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-3.8-flash"] if m != primary_model]
         fallbacks = [
             ChatGoogleGenerativeAI(
                 model=m,
                 google_api_key=google_key,
                 temperature=temperature,
+                timeout=settings.LLM_TIMEOUT_SECONDS,
+                max_retries=1,
             )
             for m in fallback_models
         ]
@@ -57,6 +63,8 @@ def get_llm(temperature: float = 0.3) -> Optional[BaseChatModel]:
             model="gpt-4o-mini",
             openai_api_key=openai_key,
             temperature=temperature,
+            timeout=settings.LLM_TIMEOUT_SECONDS,
+            max_retries=1,
         )
 
     # 3. Check Anthropic
@@ -67,6 +75,8 @@ def get_llm(temperature: float = 0.3) -> Optional[BaseChatModel]:
             model="claude-3-5-haiku-20241022",
             anthropic_api_key=anthropic_key,
             temperature=temperature,
+            timeout=settings.LLM_TIMEOUT_SECONDS,
+            max_retries=1,
         )
 
     # If no LLM key provided, return None (agents will use structured heuristic fallback)

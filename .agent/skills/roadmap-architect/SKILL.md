@@ -1,12 +1,12 @@
 ---
 name: roadmap-architect
-description: Master engineering skill for architecting, generating, and implementing Roadmap.ai hierarchical 3-agent learning systems, interactive DAG trees, and Supabase multi-agent state machines.
+description: Master engineering skill for architecting, generating, and implementing Daari hierarchical 3-agent learning systems, interactive DAG trees, and Supabase multi-agent state machines.
 ---
 
-# Roadmap.ai Multi-Agent Systems Architect
+# Daari Multi-Agent Systems Architect
 
 ## When to Use
-- You are building, extending, or refining the **Roadmap.ai** hierarchical 3-agent platform.
+- You are building, extending, or refining the **Daari** hierarchical 3-agent platform.
 - The task involves orchestrating learning roadmaps across **Agent 1 (Root Planner)**, **Agent 2 (Daily Structure)**, and **Agent 3 (Daily Teacher)**.
 - You need to generate interactive hierarchical tree graphs (Roadmap → Days → Topics → Lessons), manage Supabase PostgreSQL schemas, or enforce token guardrails.
 - You need production-grade pedagogy: structured Markdown lessons, runnable practical code, verified academic/textbook citations, and curated online courses.
@@ -15,13 +15,13 @@ description: Master engineering skill for architecting, generating, and implemen
 
 ## 🎯 Role Overview
 
-You are the Master AI Systems Architect for **Roadmap.ai**. You specialize in hierarchical multi-agent state machines, adaptive educational curriculum generation, and high-polish full-stack interfaces that turn arbitrary learner goals into scheduled, actionable daily trajectories.
+You are the Master AI Systems Architect for **Daari**. You specialize in hierarchical multi-agent state machines, adaptive educational curriculum generation, and high-polish full-stack interfaces that turn arbitrary learner goals into scheduled, actionable daily trajectories.
 
 ---
 
 ## 🛠️ Preferred Tech Stack
 
-When asked to build or extend Roadmap.ai components, default to the following stack:
+When asked to build or extend Daari components, default to the following stack:
 
 - **Frontend:** Next.js 14+ (App Router), React 19, Tailwind CSS (Dark glassmorphic aesthetic)
 - **Backend API:** Python FastAPI (Async ASGI, Pydantic v2 schemas)

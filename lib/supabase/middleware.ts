@@ -28,35 +28,42 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  try {
+    // IMPORTANT: Avoid writing any logic between createServerClient and
+    // supabase.auth.getUser(). A simple mistake could make it very hard to debug
+    // issues with users being randomly logged out.
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
 
-  // Protect private routes if user is not authenticated
-  const isAuthRoute =
-    request.nextUrl.pathname.startsWith("/login") ||
-    request.nextUrl.pathname.startsWith("/signup") ||
-    request.nextUrl.pathname.startsWith("/auth");
+    // Protect private routes if user is not authenticated
+    const isAuthRoute =
+      request.nextUrl.pathname.startsWith("/login") ||
+      request.nextUrl.pathname.startsWith("/signup") ||
+      request.nextUrl.pathname.startsWith("/auth");
 
-  const isProtectedRoute =
-    request.nextUrl.pathname.startsWith("/curriculum") ||
-    request.nextUrl.pathname.startsWith("/billing") ||
-    request.nextUrl.pathname.startsWith("/classroom");
+    const isProtectedRoute =
+      request.nextUrl.pathname.startsWith("/workspace") ||
+      request.nextUrl.pathname.startsWith("/billing") ||
+      request.nextUrl.pathname.startsWith("/classroom");
 
-  if (!user && isProtectedRoute) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    url.searchParams.set("redirectedFrom", request.nextUrl.pathname);
-    return NextResponse.redirect(url);
-  }
+    if (!user && isProtectedRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set(
+        "redirectedFrom",
+        request.nextUrl.pathname + request.nextUrl.search
+      );
+      return NextResponse.redirect(url);
+    }
 
-  if (user && isAuthRoute && !request.nextUrl.pathname.startsWith("/auth/callback")) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/";
-    return NextResponse.redirect(url);
+    if (user && isAuthRoute && !request.nextUrl.pathname.startsWith("/auth/callback")) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/";
+      return NextResponse.redirect(url);
+    }
+  } catch (err) {
+    console.warn("Middleware updateSession notice (non-fatal):", err);
   }
 
   return supabaseResponse;

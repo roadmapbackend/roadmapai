@@ -2,7 +2,7 @@ from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "Praxis Adaptive Learning Platform"
+    PROJECT_NAME: str = "Daari Adaptive Learning Platform"
     API_V1_STR: str = "/api/v1"
     
     # Supabase Configuration
@@ -18,6 +18,10 @@ class Settings(BaseSettings):
     GROQ_API_KEY: Optional[str] = None
     GEMINI_MODEL: str = "gemini-2.0-flash"
     
+    # Upper bounds on outside calls, so a stuck one can never hang forever
+    LLM_TIMEOUT_SECONDS: float = 45
+    DB_TIMEOUT_SECONDS: int = 15
+
     # Agent Guardrails & Token Limits
     MAX_LOOP_ITERATIONS: int = 15
     DEFAULT_MONTHLY_TOKEN_BUDGET: int = 250000

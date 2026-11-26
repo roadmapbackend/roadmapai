@@ -1,1021 +1,467 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { fetchWithAuth, API_BASE_URL } from "@/lib/api";
 import { createClient } from "@/lib/supabase/client";
-import {
-  getUserActiveRoadmap,
-  saveRoadmapToSupabase,
-  saveDayTopicsToSupabase,
-  getOrSaveLessonFromSupabase,
-  logAgentExecution,
-  getDomainTopicsForDay,
-  generateDomainDays,
-} from "@/lib/supabase-roadmap";
-import AntigravityCard from "@/components/AntigravityCard";
+import { getUserRoadmaps, RoadmapSummary } from "@/lib/supabase-roadmap";
+import { ArrowRight, Loader2, Plus } from "@/components/ui/icons";
+import { startPath } from "@/components/create-roadmap-dialog";
+import { HeroMap } from "@/components/home/hero-map";
+import { Chapter, Label, Reveal } from "@/components/home/chapter";
+import { Agents } from "@/components/home/agents";
+import { SubjectTiles } from "@/components/home/subject-tiles";
+import { BandFade } from "@/components/home/topo";
+import { StartSentence } from "@/components/home/start-sentence";
+import { SamplePlan } from "@/components/home/sample-plan";
+import { BeliefDemo } from "@/components/home/belief-demo";
+import { PathList } from "@/components/home/path-list";
+import { SiteOpeningAnimation } from "@/components/site-opening-animation";
+import { SiteFooter } from "@/components/site-footer";
+import { useLenis } from "@/components/smooth-scroll";
+import { isInternalNavigation, clearInternalNavigationFlag } from "@/lib/navigation-tracker";
 
-interface Topic {
-  id: string;
-  topic_number: number;
-  title: string;
-  description: string;
-  estimated_minutes: number;
-  status: "not_started" | "in_progress" | "completed";
-}
-
-interface DayNode {
-  id: string;
-  day_number: number;
-  title: string;
-  description: string;
-  learning_objectives: string[];
-  status: "not_started" | "in_progress" | "completed";
-  topics: Topic[];
-}
-
-interface LessonData {
-  topic_id: string;
-  content_markdown: string;
-  practical_examples: Array<{ language?: string; title: string; code: string }>;
-  citations: Array<{ title: string; url?: string; source_type: string; snippet?: string }>;
-  recommended_courses: Array<{ title: string; platform: string; url?: string; level: string }>;
-}
-
-export default function Home() {
-  const router = useRouter();
+export default function LandingPage() {
+  const lenis = useLenis();
   const supabase = createClient();
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  // 1. Core Input Variables
-  const [domain, setDomain] = useState("Distributed Systems & Consensus Engines");
-  const [totalDays, setTotalDays] = useState(7);
-  const [dailyHours, setDailyHours] = useState(2.0);
-  const [navigationMode, setNavigationMode] = useState<"sequential" | "nonlinear">("nonlinear");
+  // Animation states - only play on initial visit or refresh, NEVER on internal route hop back to home
+  const [animationActive, setAnimationActive] = useState(() => !isInternalNavigation());
+  const [pageRevealed, setPageRevealed] = useState(() => isInternalNavigation());
+  const [animationDone, setAnimationDone] = useState(() => isInternalNavigation());
 
-  // Active state
-  const [roadmapId, setRoadmapId] = useState<string | null>(null);
-  const [roadmapDays, setRoadmapDays] = useState<DayNode[]>([]);
-  const [selectedDayId, setSelectedDayId] = useState<string | null>(null);
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const [currentLesson, setCurrentLesson] = useState<LessonData | null>(null);
+  // Roadmaps state
+  const [roadmaps, setRoadmaps] = useState<RoadmapSummary[]>([]);
+  const [isLoadingRoadmaps, setIsLoadingRoadmaps] = useState(true);
 
-  // Loading flags
-  const [isGeneratingRoadmap, setIsGeneratingRoadmap] = useState(false);
-  const [isLoadingTopics, setIsLoadingTopics] = useState(false);
-  const [isLoadingLesson, setIsLoadingLesson] = useState(false);
-  const [activeTab, setActiveTab] = useState<"lesson" | "code" | "citations" | "courses">("lesson");
-  const [copiedCodeIndex, setCopiedCodeIndex] = useState<number | null>(null);
-  const loadedUserRef = useRef<string | null>(null);
-  const inFlightLessonRef = useRef<{ [key: string]: boolean }>({});
-
-  // Auth & Initial starter tree (guarded to prevent duplicate requests)
+  // 1. Initial user & roadmaps load with live auth listener
   useEffect(() => {
     let isMounted = true;
 
-    async function initUserAndData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!isMounted) return;
-      setCurrentUser(user);
+    // Safety timeout: Guarantee that after 2.5 seconds, the loading spinner is dismissed no matter what
+    const safetyTimer = setTimeout(() => {
+      if (isMounted) {
+        setIsLoadingRoadmaps(false);
+      }
+    }, 2500);
 
-      if (user) {
-        if (loadedUserRef.current !== user.id) {
-          loadedUserRef.current = user.id;
-          await loadUserRoadmap(user.id);
+    async function loadData(targetUser?: any) {
+      setIsLoadingRoadmaps(true);
+      try {
+        let user = targetUser;
+        if (user === undefined) {
+          const { data: authData } = await supabase.auth.getUser();
+          user = authData?.user ?? null;
         }
-      } else {
-        if (!loadedUserRef.current) {
-          loadedUserRef.current = "guest";
-          loadGuestRoadmap();
-        }
+        if (!isMounted) return;
+        setCurrentUser(user);
+
+        const loaded = await getUserRoadmaps(user ? user.id : "guest");
+        if (!isMounted) return;
+        setRoadmaps(loaded);
+      } catch (err) {
+        console.warn("Notice loading user roadmaps:", err);
+      } finally {
+        clearTimeout(safetyTimer);
+        setIsLoadingRoadmaps(false);
       }
     }
 
-    initUserAndData();
+    loadData();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const user = session?.user || null;
-      setCurrentUser(user);
-      if (user) {
-        if (loadedUserRef.current !== user.id) {
-          loadedUserRef.current = user.id;
-          await loadUserRoadmap(user.id);
+    // Listen to Supabase auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+      if (event === "SIGNED_OUT" || !session?.user) {
+        setCurrentUser(null);
+        setIsLoadingRoadmaps(true);
+        try {
+          const guestRoadmaps = await getUserRoadmaps("guest");
+          if (isMounted) {
+            setRoadmaps(guestRoadmaps);
+          }
+        } finally {
+          setIsLoadingRoadmaps(false);
         }
-      } else if (event === "SIGNED_OUT") {
-        loadedUserRef.current = "guest";
-        loadGuestRoadmap();
+      } else if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        loadData(session?.user);
       }
     });
+
+    // Listen to custom global auth events (dispatched from navbar logout immediately)
+    const handleCustomAuthChange = async (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (!isMounted) return;
+      if (customEvent.detail?.event === "SIGNED_OUT") {
+        setCurrentUser(null);
+        setIsLoadingRoadmaps(true);
+        try {
+          const guestRoadmaps = await getUserRoadmaps("guest");
+          if (isMounted) {
+            setRoadmaps(guestRoadmaps);
+          }
+        } finally {
+          setIsLoadingRoadmaps(false);
+        }
+      } else if (customEvent.detail?.session?.user) {
+        loadData(customEvent.detail.session.user);
+      } else {
+        loadData();
+      }
+    };
+
+    window.addEventListener("roadmap-auth-state-changed", handleCustomAuthChange);
 
     return () => {
       isMounted = false;
-      subscription.unsubscribe();
+      clearTimeout(safetyTimer);
+      subscription?.unsubscribe();
+      window.removeEventListener("roadmap-auth-state-changed", handleCustomAuthChange);
     };
   }, []);
 
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(null);
-    loadGuestRoadmap();
-    router.refresh();
-  };
-
-  // Load existing active roadmap for authenticated user or auto-create first one
-  const loadUserRoadmap = async (userId: string) => {
-    setIsGeneratingRoadmap(true);
-    try {
-      const activeData = await getUserActiveRoadmap(userId);
-      if (activeData && activeData.roadmap && activeData.days && activeData.days.length > 0) {
-        setRoadmapId(activeData.roadmap.id);
-        setDomain(activeData.roadmap.domain_context || domain);
-        setTotalDays(activeData.roadmap.total_days || totalDays);
-        setDailyHours(activeData.roadmap.daily_hours_commitment || dailyHours);
-        setRoadmapDays(activeData.days);
-
-        const firstDay = activeData.days[0];
-        setSelectedDayId(firstDay.id);
-
-        if (firstDay.topics && firstDay.topics.length > 0) {
-          const firstTopic = firstDay.topics[0];
-          setSelectedTopicId(firstTopic.id);
-          await handleFetchLesson(firstTopic.id, firstTopic.title);
-        } else {
-          await handleFetchDayTopics(activeData.roadmap.id, firstDay.id);
-        }
-        return;
+  // 2. Lock scroll to top & prevent browser jump on refresh
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      // Disable browser native scroll restoration on refresh
+      if ("scrollRestoration" in history) {
+        history.scrollRestoration = "manual";
       }
 
-      // No active roadmap found in Supabase for this user, generate and persist their first one!
-      const created = await saveRoadmapToSupabase(userId, domain, totalDays, dailyHours);
-      setRoadmapId(created.roadmap.id);
-      setRoadmapDays(created.days);
-      if (created.days.length > 0) {
-        const firstDay = created.days[0];
-        setSelectedDayId(firstDay.id);
-        if (firstDay.topics.length > 0) {
-          const firstTopic = firstDay.topics[0];
-          setSelectedTopicId(firstTopic.id);
-          await handleFetchLesson(firstTopic.id, firstTopic.title);
+      // If it's a fresh load or browser refresh (not internal route hop), enforce top scroll
+      if (!isInternalNavigation()) {
+        window.scrollTo(0, 0);
+        if (lenis) {
+          lenis.scrollTo(0, { immediate: true });
+        }
+
+        // If page has a hash anchor on reload (e.g. user refreshed on /#portfolio),
+        // clear it immediately so it doesn't jump down past the hero!
+        if (window.location.hash) {
+          window.history.replaceState(null, "", window.location.pathname);
         }
       }
-    } catch (err) {
-      console.error("Error loading user roadmap from Supabase:", err);
-      loadGuestRoadmap();
-    } finally {
-      setIsGeneratingRoadmap(false);
+
+      // If returning via internal navigation, guarantee intro animation is skipped
+      if (isInternalNavigation()) {
+        setAnimationActive(false);
+        setPageRevealed(true);
+        setAnimationDone(true);
+        const timer = setTimeout(() => {
+          clearInternalNavigationFlag();
+        }, 600);
+        return () => clearTimeout(timer);
+      }
     }
-  };
 
-  const loadGuestRoadmap = () => {
-    setRoadmapId(null);
-    const domainDays = generateDomainDays(domain, totalDays);
-
-    const localDays: DayNode[] = domainDays.map((d) => {
-      const dayNum = d.day_number;
-      const domainTopics = getDomainTopicsForDay(domain, dailyHours, dayNum, d.title);
-      const topics: Topic[] = domainTopics.map((t) => ({
-        id: `guest-top-${dayNum}-${t.topic_number}`,
-        topic_number: t.topic_number,
-        title: t.title,
-        description: t.description,
-        estimated_minutes: t.estimated_minutes,
-        status: (dayNum === 1 && t.topic_number === 1 ? "in_progress" : "not_started") as "in_progress" | "not_started",
-      }));
-
-      return {
-        id: `guest-day-${dayNum}`,
-        day_number: dayNum,
-        title: d.title,
-        description: d.description,
-        learning_objectives: d.learning_objectives,
-        status: (dayNum === 1 ? "in_progress" : "not_started") as "in_progress" | "not_started",
-        topics,
-      };
-    });
-
-    setRoadmapDays(localDays);
-    setSelectedDayId(localDays[0].id);
-    setSelectedTopicId(localDays[0].topics[0].id);
-    loadMockLesson(localDays[0].topics[0].title);
-  };
-
-  // Trigger Agent 1: Roadmap Structure Agent
-  const handleGenerateRoadmap = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setIsGeneratingRoadmap(true);
-
-    try {
-      // 1. Try FastAPI backend if active
-      try {
-        const res = await fetchWithAuth("/roadmap/generate", {
-          method: "POST",
-          body: JSON.stringify({
-            domain_context: domain,
-            total_days: totalDays,
-            daily_hours: dailyHours,
-            skill_level: "intermediate",
-          }),
-        });
-
-        if (res && res.roadmap && res.days) {
-          setRoadmapId(res.roadmap.id);
-          const mappedDays: DayNode[] = res.days.map((d: any) => ({
-            id: d.id,
-            day_number: d.day_number,
-            title: d.title,
-            description: d.description,
-            learning_objectives: d.learning_objectives || [],
-            status: d.status || "not_started",
-            topics: (d.topics || []).map((t: any) => ({
-              id: t.id,
-              topic_number: t.topic_number,
-              title: t.title,
-              description: t.description,
-              estimated_minutes: t.estimated_minutes,
-              status: t.status || "not_started",
-            })),
-          }));
-          setRoadmapDays(mappedDays);
-          setIsGeneratingRoadmap(false);
-
-          if (mappedDays.length > 0) {
-            const firstDay = mappedDays[0];
-            setSelectedDayId(firstDay.id);
-            if (firstDay.topics && firstDay.topics.length > 0) {
-              const firstTopic = firstDay.topics[0];
-              setSelectedTopicId(firstTopic.id);
-              handleFetchLesson(firstTopic.id, firstTopic.title);
-            } else {
-              handleFetchDayTopics(res.roadmap.id, firstDay.id);
-            }
-          }
-          return;
-        }
-      } catch (backendErr) {
-        console.warn("Backend API offline or unreachable, writing directly to Supabase:", backendErr);
+    const handleReplay = () => {
+      setAnimationActive(true);
+      setPageRevealed(false);
+      setAnimationDone(false);
+      window.scrollTo(0, 0);
+      if (lenis) {
+        lenis.scrollTo(0, { immediate: true });
       }
+    };
 
-      // 2. Direct Supabase generation and persistence if authenticated
-      if (currentUser?.id) {
-        const created = await saveRoadmapToSupabase(
-          currentUser.id,
-          domain,
-          totalDays,
-          dailyHours
-        );
-        setRoadmapId(created.roadmap.id);
-        setRoadmapDays(created.days);
+    window.addEventListener("roadmap-replay-site-intro", handleReplay);
+    return () => window.removeEventListener("roadmap-replay-site-intro", handleReplay);
+  }, [lenis]);
 
-        if (created.days.length > 0) {
-          const firstDay = created.days[0];
-          setSelectedDayId(firstDay.id);
-          if (firstDay.topics.length > 0) {
-            const firstTopic = firstDay.topics[0];
-            setSelectedTopicId(firstTopic.id);
-            await handleFetchLesson(firstTopic.id, firstTopic.title);
-          }
-        }
-        return;
-      }
+  // 3. Handle direct hash navigation e.g. clicking Curricula in the navbar AFTER animation is complete
+  useEffect(() => {
+    if (animationActive) return;
 
-      // 3. Fallback guest simulation
-      loadGuestRoadmap();
-    } catch (err) {
-      console.error("Error generating roadmap:", err);
-      loadGuestRoadmap();
-    } finally {
-      setIsGeneratingRoadmap(false);
-    }
-  };
+    const handleHashScroll = (smooth = true) => {
+      if (typeof window === "undefined") return;
+      const currentHash = window.location.hash.replace("#", "");
 
-  // Trigger Agent 2: Daily Structure Agent
-  const handleFetchDayTopics = async (rId: string, dId: string) => {
-    setIsLoadingTopics(true);
-    try {
-      // 1. Try FastAPI backend if active
-      try {
-        const topicsRes = await fetchWithAuth(`/roadmap/${rId}/day/${dId}/structure`, {
-          method: "POST",
-        });
-
-        if (Array.isArray(topicsRes) && topicsRes.length > 0) {
-          setRoadmapDays((prev) =>
-            prev.map((d) =>
-              d.id === dId
-                ? {
-                    ...d,
-                    topics: topicsRes.map((t: any) => ({
-                      id: t.id,
-                      topic_number: t.topic_number,
-                      title: t.title,
-                      description: t.description,
-                      estimated_minutes: t.estimated_minutes,
-                      status: t.status || "not_started",
-                    })),
-                  }
-                : d
-            )
-          );
-          setSelectedTopicId(topicsRes[0].id);
-          await handleFetchLesson(topicsRes[0].id, topicsRes[0].title);
-          return;
-        }
-      } catch (backendErr) {
-        console.warn("Agent 2 backend offline, persisting topics in Supabase:", backendErr);
-      }
-
-      // 2. Direct Supabase topics persistence
-      if (rId && dId && !dId.startsWith("guest-")) {
-        const currentDay = roadmapDays.find((d) => d.id === dId);
-        const topics = await saveDayTopicsToSupabase(
-          dId,
-          rId,
-          dailyHours,
-          domain,
-          currentDay?.day_number || 1,
-          currentDay?.title || ""
-        );
-        if (topics && topics.length > 0) {
-          setRoadmapDays((prev) =>
-            prev.map((d) =>
-              d.id === dId
-                ? {
-                    ...d,
-                    topics: topics.map((t) => ({
-                      id: t.id,
-                      topic_number: t.topic_number,
-                      title: t.title,
-                      description: t.description,
-                      estimated_minutes: t.estimated_minutes,
-                      status: t.status,
-                    })),
-                  }
-                : d
-            )
-          );
-          setSelectedTopicId(topics[0].id);
-          await handleFetchLesson(topics[0].id, topics[0].title);
-
-          if (currentUser?.id) {
-            await logAgentExecution(currentUser.id, "Agent 2: Daily Structure", 250, 480, 290);
+      if (currentHash === "portfolio") {
+        const el = document.getElementById("portfolio");
+        if (el) {
+          if (lenis) {
+            lenis.scrollTo(el, { offset: -60, duration: smooth ? 1.0 : 0 });
+          } else {
+            el.scrollIntoView({ behavior: smooth ? "smooth" : "auto" });
           }
         }
       }
-    } catch (err) {
-      console.warn("Agent 2 fetch error:", err);
-    } finally {
-      setIsLoadingTopics(false);
-    }
+    };
+
+    const onHashChange = () => handleHashScroll(true);
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, [animationActive, lenis]);
+
+  const scrollToStart = () => {
+    const el = document.getElementById("architecture");
+    if (!el) return;
+    if (lenis) lenis.scrollTo(el, { offset: 0, duration: 1.2 });
+    else el.scrollIntoView({ behavior: "smooth" });
   };
 
-  // Trigger Agent 3: Daily Teacher Agent
-  const handleFetchLesson = async (tId: string, topicTitle?: string) => {
-    if (!tId || inFlightLessonRef.current[tId]) return;
-    inFlightLessonRef.current[tId] = true;
-    setIsLoadingLesson(true);
-    try {
-      // 1. Try FastAPI backend if active
-      try {
-        const lessonRes = await fetchWithAuth(`/roadmap/topic/${tId}/teach`, {
-          method: "POST",
-        });
-        if (lessonRes && lessonRes.content_markdown) {
-          setCurrentLesson(lessonRes);
-          return;
-        }
-      } catch (backendErr) {
-        console.warn("Agent 3 backend offline, persisting lesson in Supabase:", backendErr);
-      }
-
-      // 2. Direct Supabase lesson retrieval / persistence
-      if (tId && !tId.startsWith("guest-") && tId !== "mock") {
-        const resolvedTitle = topicTitle || selectedTopic?.title || "Applied Architecture & Invariants";
-        const lesson = await getOrSaveLessonFromSupabase(
-          tId,
-          resolvedTitle,
-          domain,
-          selectedTopic?.description || ""
-        );
-        if (lesson && lesson.content_markdown) {
-          setCurrentLesson(lesson);
-          if (currentUser?.id) {
-            await logAgentExecution(currentUser.id, "Agent 3: Daily Teacher", 450, 1200, 680);
-          }
-          return;
-        }
-      }
-
-      // 3. Fallback mock lesson
-      await loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
-    } catch (err) {
-      console.warn("Agent 3 fetch error:", err);
-      await loadMockLesson(topicTitle || selectedTopic?.title || "Selected Topic");
-    } finally {
-      delete inFlightLessonRef.current[tId];
-      setIsLoadingLesson(false);
-    }
-  };
-
-  const loadMockLesson = async (title: string) => {
-    try {
-      const lesson = await getOrSaveLessonFromSupabase("mock", title, domain, selectedTopic?.description);
-      setCurrentLesson(lesson);
-    } catch (e) {
-      console.warn("Error loading lesson:", e);
-    }
-  };
-
-  const copyCode = (code: string, index: number) => {
-    navigator.clipboard.writeText(code);
-    setCopiedCodeIndex(index);
-    setTimeout(() => setCopiedCodeIndex(null), 2000);
-  };
-
-  const selectedDay = roadmapDays.find((d) => d.id === selectedDayId) || roadmapDays[0];
-  const selectedTopic =
-    selectedDay?.topics?.find((t) => t.id === selectedTopicId) || selectedDay?.topics?.[0];
+  const hasOwnPaths = roadmaps.some((r) => !r.id.startsWith("demo-"));
+  // Show at most four: your own paths if you have any, otherwise the samples
+  const listedPaths = hasOwnPaths ? roadmaps.filter((r) => !r.id.startsWith("demo-")) : roadmaps;
+  const shownPaths = listedPaths.slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-[#06070a] text-zinc-100 font-sans selection:bg-indigo-500 selection:text-white relative overflow-hidden bg-dot-grid">
-      {/* Antigravity Ambient Atmospheric Lighting */}
-      <div className="pointer-events-none fixed -top-40 -left-40 w-[600px] h-[600px] bg-indigo-600/15 rounded-full blur-[140px] animate-pulse-glow" />
-      <div className="pointer-events-none fixed top-1/3 -right-40 w-[550px] h-[550px] bg-cyan-500/12 rounded-full blur-[150px] animate-pulse-glow" style={{ animationDelay: "2s" }} />
-      <div className="pointer-events-none fixed -bottom-40 left-1/3 w-[650px] h-[650px] bg-purple-600/10 rounded-full blur-[160px]" />
+    <main className="relative min-h-screen w-full bg-background text-foreground font-sans overflow-x-hidden">
+      {/* Opening intro: the logo blurs in, glides to the top, then the page blurs into focus */}
+      {animationActive && (
+        <SiteOpeningAnimation
+          onRevealStart={() => {
+            setPageRevealed(true);
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("roadmap-reveal-start"));
+            }
+          }}
+          onComplete={() => {
+            setPageRevealed(true);
+            setAnimationDone(true);
+          }}
+        />
+      )}
 
-      {/* Top Navbar */}
-      <header className="border-b border-white/[0.08] sticky top-0 z-50 bg-[#06070a]/75 backdrop-blur-2xl">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-500 via-indigo-600 to-cyan-400 flex items-center justify-center font-bold text-white shadow-lg shadow-indigo-500/30 border border-white/20 animate-float-subtle">
-              R
+      <div
+        key="hero-content-wrapper"
+        className={`w-full flex flex-col ${animationDone ? "" : `intro-reveal ${pageRevealed ? "is-revealed" : ""}`}`}
+      >
+        {/* ================= Opening screen: a trail map up to the summit ================= */}
+        <section
+          id="cockpit"
+          data-nav-dark
+          aria-label="Daari"
+          className="relative h-[100svh] min-h-[620px] w-full shrink-0 overflow-hidden bg-[#0d0b09] text-[#f6efe6] select-none"
+        >
+          <HeroMap drawn={pageRevealed} />
+
+          <div className="relative z-10 mx-auto flex h-full w-full max-w-7xl flex-col justify-end px-6 pb-6 sm:px-10 sm:pb-8">
+            <div className="home-hero-in max-w-[62rem]">
+              <Label className="text-[#e9dfd2]/65">
+                ( <span className="font-kn normal-case tracking-normal text-[13px]">ದಾರಿ</span> &nbsp;daari, Kannada for
+                the path )
+              </Label>
+              <h1 className="mt-6 font-display text-[clamp(3.1rem,8.4vw,8.75rem)] font-medium leading-[0.9] tracking-[-0.045em] text-[#f6efe6]">
+                Find your way
+                <br />
+                into <span className="font-serif font-normal tracking-[-0.03em] text-saffron">anything.</span>
+              </h1>
             </div>
-            <div className="flex items-baseline gap-1.5">
-              <span className="font-extrabold text-xl tracking-tight text-white drop-shadow-sm">Roadmap</span>
-              <span className="text-xs font-mono font-bold text-indigo-400">.ai</span>
-            </div>
-            <span className="ml-2 text-[10px] uppercase font-mono tracking-widest px-2.5 py-0.5 rounded-full glass-pill text-indigo-300 border border-indigo-400/20 shadow-inner">
-              Spatial 3-Agent
-            </span>
-          </div>
 
-          <div className="hidden md:flex items-center gap-8 text-sm text-zinc-400 font-medium">
-            <a href="#tree-workspace" className="hover:text-white transition-colors duration-200">Interactive Tree</a>
-            <a href="#agents-spec" className="hover:text-white transition-colors duration-200">3-Agent Engine</a>
-            <Link href="/billing" className="hover:text-white transition-colors duration-200">Quotas & Billing</Link>
-          </div>
-
-          <div className="flex items-center gap-3">
-            <Link
-              href="/billing"
-              className="hidden sm:inline-block text-xs font-mono px-3 py-1.5 rounded-xl glass-pill text-zinc-300 hover:text-white transition-all shadow-sm"
-            >
-              Token Quota: 250k
-            </Link>
-
-            {currentUser ? (
-              <div className="flex items-center gap-2.5">
-                <span className="text-xs font-mono text-emerald-400 glass-pill px-3 py-1.5 rounded-xl hidden sm:inline-flex items-center gap-1.5 border border-emerald-500/30">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Supabase Synced
-                </span>
-                <span className="text-xs font-mono text-zinc-300 glass-pill px-3 py-1.5 rounded-xl hidden sm:inline-block">
-                  {currentUser.email}
-                </span>
+            <div className="home-hero-in home-hero-in-late mt-10 grid grid-cols-1 items-end gap-6 border-t border-[#e9dfd2]/20 pt-5 sm:mt-14 md:grid-cols-12">
+              <a
+                href="#architecture"
+                onClick={(e) => {
+                  e.preventDefault();
+                  scrollToStart();
+                }}
+                className="hidden font-mono text-[11px] uppercase tracking-[0.18em] text-[#e9dfd2]/60 transition-colors hover:text-[#f6efe6] md:col-span-3 md:block"
+              >
+                ( Scroll ) <span className="inline-block animate-bounce">↓</span>
+              </a>
+              <p className="max-w-md text-base leading-relaxed text-[#e9dfd2]/80 sm:text-lg md:col-span-5">
+                Pick a subject and the time you have. Daari lays out the way, one day at a time, and checks that you
+                understood before you move on.
+              </p>
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 md:col-span-4 md:justify-end">
                 <button
-                  onClick={handleSignOut}
-                  className="text-xs font-medium px-3.5 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.1] text-zinc-200 border border-white/[0.1] transition-all cursor-pointer"
+                  type="button"
+                  onClick={() => startPath()}
+                  className="inline-flex h-12 cursor-pointer items-center gap-2 rounded-full bg-saffron px-6 text-base font-semibold text-black transition-colors hover:bg-orange-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f6efe6]"
                 >
-                  Sign Out
+                  <Plus className="size-4 stroke-[2.5]" />
+                  Start a path
                 </button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Link
-                  href="/login"
-                  className="text-xs font-medium px-3.5 py-1.5 rounded-xl text-zinc-300 hover:text-white transition-all"
+                <a
+                  href="#architecture"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    scrollToStart();
+                  }}
+                  className="text-base font-semibold text-[#f6efe6] underline decoration-[#f6efe6]/30 underline-offset-[6px] transition-colors hover:decoration-saffron"
                 >
-                  Sign In
-                </Link>
-                <Link
-                  href="/signup"
-                  className="text-xs font-semibold px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white shadow-lg shadow-indigo-500/25 border border-indigo-400/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
-                >
-                  Get Started
-                </Link>
+                  See how it works
+                </a>
               </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Floating Spatial Hero */}
-      <section className="pt-16 pb-12 max-w-5xl mx-auto px-6 text-center relative z-10">
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full glass-pill text-xs text-zinc-300 mb-6 shadow-inner animate-float-slow">
-          <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Antigravity Spatial Multi-Agent Learning Engine</span>
-        </div>
-
-        <h1 className="text-4xl sm:text-6xl font-black tracking-tight text-white leading-[1.1] max-w-4xl mx-auto">
-          Turn Any Learning Goal into a{" "}
-          <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-cyan-300 to-purple-400">
-            Spatial Multi-Agent Roadmap
-          </span>
-        </h1>
-
-        <p className="mt-5 text-base sm:text-lg text-zinc-400 max-w-2xl mx-auto leading-relaxed">
-          Agent 1 partitions your goal into days. Agent 2 structures daily topics and time budgets. Agent 3 delivers comprehensive lessons, practical code, citations, and courses.
-        </p>
-
-        {/* Spatial Configuration Bar */}
-        <div className="mt-10">
-          <AntigravityCard intensity={8} glowColor="rgba(99, 102, 241, 0.2)">
-            <form
-              onSubmit={handleGenerateRoadmap}
-              className="p-5 sm:p-6 glass-panel rounded-2xl flex flex-col md:flex-row gap-4 items-center"
-            >
-              <div className="flex-1 text-left w-full">
-                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5 font-semibold">
-                  Field of Study / Syllabus Context
-                </label>
-                <input
-                  type="text"
-                  value={domain}
-                  onChange={(e) => setDomain(e.target.value)}
-                  className="w-full bg-[#040508] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition-all shadow-inner"
-                  placeholder="e.g. Distributed Consensus, Rust Concurrency, Machine Learning..."
-                />
-              </div>
-
-              <div className="w-full md:w-36 text-left">
-                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5 font-semibold">
-                  Total Days
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  max="180"
-                  value={totalDays}
-                  onChange={(e) => setTotalDays(Number(e.target.value))}
-                  className="w-full bg-[#040508] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition-all shadow-inner"
-                />
-              </div>
-
-              <div className="w-full md:w-36 text-left">
-                <label className="text-[11px] font-mono text-zinc-400 uppercase tracking-wider block mb-1.5 font-semibold">
-                  Daily Hours
-                </label>
-                <input
-                  type="number"
-                  step="0.5"
-                  min="0.5"
-                  max="16"
-                  value={dailyHours}
-                  onChange={(e) => setDailyHours(Number(e.target.value))}
-                  className="w-full bg-[#040508] border border-white/[0.1] rounded-xl px-4 py-3 text-sm text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/60 transition-all shadow-inner"
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={isGeneratingRoadmap}
-                className="w-full md:w-auto mt-auto px-7 py-3.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-sm shadow-xl shadow-indigo-500/30 border border-indigo-400/30 transition-all hover:scale-[1.03] active:scale-[0.98] self-end flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isGeneratingRoadmap ? (
-                  <>
-                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Orchestrating...</span>
-                  </>
-                ) : (
-                  "Generate Tree"
-                )}
-              </button>
-            </form>
-          </AntigravityCard>
-        </div>
-      </section>
-
-      {/* Interactive 3D Tree Workspace */}
-      <section id="tree-workspace" className="py-8 max-w-7xl mx-auto px-6 relative z-10">
-        {/* Navigation Mode Switcher */}
-        <div className="flex flex-col sm:flex-row items-center justify-between pb-4 border-b border-white/[0.08] gap-4">
-          <div className="flex items-center gap-3">
-            <span className="text-xs font-mono text-zinc-400 uppercase font-semibold">Mode:</span>
-            <div className="inline-flex rounded-xl glass-panel p-1 text-xs">
-              <button
-                onClick={() => setNavigationMode("nonlinear")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all font-medium ${
-                  navigationMode === "nonlinear"
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                Node-Select Mode (Arbitrary)
-              </button>
-              <button
-                onClick={() => setNavigationMode("sequential")}
-                className={`px-3.5 py-1.5 rounded-lg transition-all font-medium ${
-                  navigationMode === "sequential"
-                    ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/30"
-                    : "text-zinc-400 hover:text-white"
-                }`}
-              >
-                Sequential Mode (Linear)
-              </button>
             </div>
           </div>
+        </section>
+        <BandFade to="page" />
 
-          <div className="text-xs text-zinc-400 flex items-center gap-5">
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-sm shadow-emerald-400/50" /> Completed
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-indigo-400 shadow-sm shadow-indigo-400/50 animate-pulse" /> Active
-            </span>
-            <span className="flex items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full bg-zinc-600" /> Pending
-            </span>
-          </div>
-        </div>
-
-        {/* Tree Layout: Split View (Hierarchical Tree on Left, Teacher Panel on Right) */}
-        <div className="mt-8 grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-          {/* Left Column: Hierarchical Roadmap Tree (Agent 1 & Agent 2) */}
-          <div className="lg:col-span-5 space-y-4">
-            <div className="p-4 rounded-2xl glass-panel flex items-center justify-between border-indigo-500/20">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-mono tracking-widest text-indigo-400 font-bold">
-                    Agent 1: Roadmap Structure
-                  </span>
-                  {currentUser ? (
-                    <span className="text-[9px] uppercase font-mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                      Supabase Cloud DB
-                    </span>
-                  ) : (
-                    <span className="text-[9px] uppercase font-mono bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                      Guest Simulation
-                    </span>
-                  )}
-                </div>
-                <h2 className="text-sm font-bold text-white mt-0.5">{domain}</h2>
-              </div>
-              <span className="text-xs font-mono text-zinc-300 glass-pill px-3 py-1 rounded-lg">
-                {roadmapDays.length} Days
-              </span>
-            </div>
-
-            {/* Days and Topics Accordion Tree with Antigravity 3D Cards */}
-            <div className="space-y-3.5 max-h-[640px] overflow-y-auto pr-1.5">
-              {roadmapDays.map((day) => {
-                const isSelected = selectedDayId === day.id;
-                return (
-                  <AntigravityCard
-                    key={day.id}
-                    intensity={10}
-                    glowColor={isSelected ? "rgba(99, 102, 241, 0.3)" : "rgba(255, 255, 255, 0.05)"}
-                  >
-                    <div
-                      className={`p-4 rounded-2xl transition-all duration-300 ${
-                        isSelected
-                          ? "glass-panel-elevated ring-1 ring-indigo-500/40"
-                          : "glass-panel hover:border-white/20"
-                      }`}
-                    >
-                      {/* Day Header Node */}
-                      <div
-                        onClick={() => {
-                          setSelectedDayId(day.id);
-                          if ((!day.topics || day.topics.length === 0) && roadmapId) {
-                            handleFetchDayTopics(roadmapId, day.id);
-                          } else if (day.topics && day.topics.length > 0) {
-                            setSelectedTopicId(day.topics[0].id);
-                            handleFetchLesson(day.topics[0].id, day.topics[0].title);
-                          }
-                        }}
-                        className="cursor-pointer flex items-start justify-between gap-3"
-                      >
-                        <div className="flex items-start gap-3">
-                          <span
-                            className={`h-8 w-8 rounded-xl text-xs font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-md ${
-                              day.status === "completed"
-                                ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
-                                : day.status === "in_progress"
-                                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/40 shadow-indigo-500/20"
-                                : "bg-white/[0.05] text-zinc-400 border border-white/10"
-                            }`}
-                          >
-                            D{day.day_number}
-                          </span>
-                          <div>
-                            <h3 className="font-bold text-sm text-zinc-100 leading-snug">
-                              {day.title.startsWith(`Day ${day.day_number}:`) ? day.title : `Day ${day.day_number}: ${day.title}`}
-                            </h3>
-                            <p className="text-xs text-zinc-400 mt-1 line-clamp-2 leading-relaxed">
-                              {day.description}
-                            </p>
-                          </div>
-                        </div>
-
-                        <span className="text-[11px] text-zinc-400 font-mono shrink-0 glass-pill px-2 py-0.5 rounded">
-                          {day.topics.length > 0 ? `${day.topics.length} topics` : "Expand"}
-                        </span>
-                      </div>
-
-                      {/* Subtopic Nodes (Agent 2: Daily Structure) */}
-                      {isSelected && (
-                        <div className="px-1 pb-1 pt-3.5 border-t border-white/[0.08] mt-3 space-y-2">
-                          <div className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 mb-2 flex items-center justify-between">
-                            <span className="text-indigo-300 font-semibold">Agent 2: Daily Subtopics</span>
-                            <span>{dailyHours}h budgeted</span>
-                          </div>
-
-                          {isLoadingTopics ? (
-                            <div className="p-4 text-center text-xs text-indigo-300 font-mono flex items-center justify-center gap-2">
-                              <span className="animate-spin">⚙</span> Agent 2 calculating topic time budgets...
-                            </div>
-                          ) : (
-                            day.topics.map((t) => {
-                              const isTopicSelected = selectedTopicId === t.id;
-                              return (
-                                <div
-                                  key={t.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTopicId(t.id);
-                                    handleFetchLesson(t.id, t.title);
-                                  }}
-                                  className={`p-3 rounded-xl border cursor-pointer transition-all duration-200 flex items-center justify-between gap-3 ${
-                                    isTopicSelected
-                                      ? "bg-indigo-600/20 border-indigo-400/60 text-white shadow-md shadow-indigo-500/10"
-                                      : "bg-black/30 border-white/[0.06] text-zinc-300 hover:border-white/20 hover:bg-white/[0.02]"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2.5">
-                                    <span
-                                      className={`h-2.5 w-2.5 rounded-full ${
-                                        t.status === "completed"
-                                          ? "bg-emerald-400 shadow-sm shadow-emerald-400/50"
-                                          : t.status === "in_progress"
-                                          ? "bg-indigo-400 shadow-sm shadow-indigo-400/50 animate-pulse"
-                                          : "bg-zinc-600"
-                                      }`}
-                                    />
-                                    <div>
-                                      <div className="text-xs font-semibold">{t.title}</div>
-                                      <div className="text-[11px] text-zinc-400 font-mono">
-                                        {t.estimated_minutes} min study session
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <span className="text-[10px] font-mono text-indigo-300 glass-pill px-2.5 py-0.5 rounded border border-indigo-400/20">
-                                    {isTopicSelected ? "Active" : "Inspect"}
-                                  </span>
-                                </div>
-                              );
-                            })
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </AntigravityCard>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Right Column: Agent 3 Daily Teacher & Resource Curator */}
-          <div className="lg:col-span-7">
-            <AntigravityCard intensity={6} glowColor="rgba(99, 102, 241, 0.25)">
-              <div className="glass-panel-elevated rounded-3xl p-6 sm:p-8 backdrop-blur-2xl">
-                <div className="flex items-center justify-between pb-4 border-b border-white/[0.08]">
-                  <div>
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-indigo-400 font-bold">
-                      Agent 3: Daily Teacher
-                    </span>
-                    <h3 className="text-lg sm:text-xl font-bold text-white mt-1">
-                      {selectedTopic?.title || "Select a Topic to Begin Lesson"}
-                    </h3>
-                  </div>
-
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-xs font-mono text-zinc-400">
-                      Day {selectedDay?.day_number || 1}
-                    </span>
-                    <span className="text-zinc-600">|</span>
-                    <span className="text-xs font-mono text-emerald-300 bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/30">
-                      {selectedTopic?.estimated_minutes || 45} mins
-                    </span>
-                  </div>
-                </div>
-
-                {/* Teacher Tabs */}
-                <div className="flex border-b border-white/[0.08] mt-5 gap-2 overflow-x-auto pb-1">
-                  {[
-                    { id: "lesson", label: "Lesson Content" },
-                    { id: "code", label: "Practical Implementation" },
-                    { id: "citations", label: "Verified Citations" },
-                    { id: "courses", label: "Recommended Courses" },
-                  ].map((tab) => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveTab(tab.id as any)}
-                      className={`px-4 py-2.5 text-xs font-semibold rounded-xl transition-all duration-200 cursor-pointer ${
-                        activeTab === tab.id
-                          ? "bg-indigo-600 text-white shadow-lg shadow-indigo-500/30 border border-indigo-400/40"
-                          : "text-zinc-400 hover:text-white hover:bg-white/[0.04]"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Tab Body */}
-                <div className="mt-6 space-y-4 min-h-[420px]">
-                  {isLoadingLesson ? (
-                    <div className="flex flex-col items-center justify-center h-80 text-xs font-mono text-indigo-300 gap-3">
-                      <span className="h-8 w-8 border-3 border-indigo-400 border-t-transparent rounded-full animate-spin shadow-lg shadow-indigo-500/30" />
-                      <span>Agent 3 generating pedagogy, code & verified citations...</span>
-                    </div>
-                  ) : currentLesson ? (
-                    <>
-                      {activeTab === "lesson" && (
-                        <div className="space-y-4 text-sm text-zinc-300 leading-relaxed max-h-[460px] overflow-y-auto pr-2 font-normal">
-                          <div className="whitespace-pre-line">{currentLesson.content_markdown}</div>
-                        </div>
-                      )}
-
-                      {activeTab === "code" && (
-                        <div className="space-y-4 max-h-[460px] overflow-y-auto pr-1">
-                          {currentLesson.practical_examples && currentLesson.practical_examples.length > 0 ? (
-                            currentLesson.practical_examples.map((ex, idx) => (
-                              <div key={idx} className="space-y-2">
-                                <div className="flex items-center justify-between text-xs text-zinc-400">
-                                  <span className="font-mono font-bold text-white">{ex.title}</span>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] bg-white/[0.06] px-2 py-0.5 rounded font-mono text-indigo-300 border border-white/10">
-                                      {ex.language || "python"}
-                                    </span>
-                                    <button
-                                      onClick={() => copyCode(ex.code, idx)}
-                                      className="text-[11px] font-mono px-2 py-0.5 rounded bg-indigo-600/30 hover:bg-indigo-600 text-indigo-200 transition-all cursor-pointer"
-                                    >
-                                      {copiedCodeIndex === idx ? "✓ Copied" : "Copy"}
-                                    </button>
-                                  </div>
-                                </div>
-                                <pre className="p-4 rounded-2xl bg-[#040508] border border-white/[0.08] text-xs font-mono text-zinc-200 overflow-x-auto leading-relaxed shadow-inner">
-                                  {ex.code}
-                                </pre>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-xs text-zinc-400">No code examples generated for this theoretical topic.</p>
-                          )}
-                        </div>
-                      )}
-
-                      {activeTab === "citations" && (
-                        <div className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
-                          {currentLesson.citations && currentLesson.citations.length > 0 ? (
-                            currentLesson.citations.map((c, idx) => (
-                              <div key={idx} className="p-4 rounded-2xl glass-panel border-white/[0.08] hover:border-indigo-500/40 transition-all">
-                                <div className="flex items-center justify-between">
-                                  <span className="text-xs font-bold text-white">{c.title}</span>
-                                  <span className="text-[10px] font-mono uppercase bg-indigo-500/15 text-indigo-300 px-2 py-0.5 rounded border border-indigo-400/20">
-                                    {c.source_type}
-                                  </span>
-                                </div>
-                                {c.snippet && <p className="text-xs text-zinc-400 mt-2 leading-relaxed">{c.snippet}</p>}
-                                {c.url && (
-                                  <a
-                                    href={c.url.startsWith("http") ? c.url : `https://${c.url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="text-[11px] text-indigo-400 hover:text-indigo-300 hover:underline mt-2.5 inline-block font-mono"
-                                  >
-                                    Inspect Primary Source ↗
-                                  </a>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-xs text-zinc-400">No citation sources attached.</p>
-                          )}
-                        </div>
-                      )}
-
-                      {activeTab === "courses" && (
-                        <div className="space-y-3.5 max-h-[460px] overflow-y-auto pr-1">
-                          {currentLesson.recommended_courses && currentLesson.recommended_courses.length > 0 ? (
-                            currentLesson.recommended_courses.map((course, idx) => (
-                              <div key={idx} className="p-4 rounded-2xl glass-panel border-white/[0.08] flex items-center justify-between hover:border-cyan-500/40 transition-all">
-                                <div>
-                                  <h4 className="text-sm font-bold text-white">{course.title}</h4>
-                                  <p className="text-xs text-zinc-400 mt-0.5 font-mono">{course.platform} · Level: {course.level}</p>
-                                </div>
-                                {course.url && (
-                                  <a
-                                    href={course.url.startsWith("http") ? course.url : `https://${course.url}`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="px-3.5 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.12] text-xs font-semibold text-white border border-white/10 transition-all"
-                                  >
-                                    Enroll ↗
-                                  </a>
-                                )}
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-xs text-zinc-400">No course recommendations attached.</p>
-                          )}
-                        </div>
-                      )}
-                    </>
-                  ) : null}
-                </div>
-
-                {/* Bottom Action Footer */}
-                <div className="pt-4 mt-6 border-t border-white/[0.08] flex items-center justify-between">
-                  <span className="text-xs text-zinc-400 font-mono">Mastered this topic?</span>
-                  <button
-                    onClick={() => alert("Topic marked completed! Advancing along your trajectory.")}
-                    className="px-5 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-500/25 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
-                  >
-                    Mark Complete & Advance →
-                  </button>
-                </div>
-              </div>
-            </AntigravityCard>
-          </div>
-        </div>
-      </section>
-
-      {/* 3-Agent Architecture Explanation */}
-      <section id="agents-spec" className="py-20 border-t border-white/[0.08] relative z-10">
-        <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center max-w-2xl mx-auto mb-14">
-            <span className="text-xs uppercase font-mono tracking-widest text-indigo-400 font-bold">
-              The Multi-Agent Engine
-            </span>
-            <h2 className="text-3xl font-extrabold tracking-tight text-white mt-1.5">
-              Hierarchical 3-Agent Tree Architecture
-            </h2>
-            <p className="text-zinc-400 text-sm mt-2.5 leading-relaxed">
-              Each layer of your learning trajectory is decomposed and delivered by a specialized AI agent.
+        {/* ================= Why: one plain statement ================= */}
+        <section id="architecture" className="scroll-mt-0 mx-auto w-full max-w-7xl px-6 pb-24 pt-10 sm:px-10 sm:pb-36 sm:pt-16">
+          <Reveal className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+            <Label className="lg:col-span-3 lg:pt-4">( Why Daari )</Label>
+            <p className="font-display text-[clamp(2.1rem,4.6vw,4.5rem)] font-medium leading-[1.02] tracking-[-0.03em] text-balance lg:col-span-9">
+              Learning something new is hard enough.{" "}
+              <span className="font-serif font-normal text-muted-foreground">Finding the way shouldn’t be.</span>
             </p>
+          </Reveal>
+
+          <div className="mt-16 grid grid-cols-1 items-end gap-10 sm:mt-24 lg:grid-cols-12">
+            <Reveal className="lg:col-span-5">
+              <p aria-hidden="true" className="home-outline font-kn text-[7rem] leading-none sm:text-[11rem]">
+                ದಾರಿ
+              </p>
+            </Reveal>
+            <Reveal delay={120} className="space-y-4 text-base leading-relaxed text-muted-foreground sm:text-lg lg:col-span-6 lg:col-start-7">
+              <p>
+                Most courses hand everyone the same outline. Daari works out what fits your time, puts the steps in
+                order, and checks that you really understood each one.
+              </p>
+              <p>
+                The name is Kannada for <em className="font-serif not-italic text-foreground">path</em>. That is the
+                whole idea: you say where you want to get to, and Daari shows you the way there.
+              </p>
+            </Reveal>
           </div>
+        </section>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <AntigravityCard intensity={12} glowColor="rgba(99, 102, 241, 0.2)">
-              <div className="p-6 rounded-2xl glass-panel h-full">
-                <div className="h-10 w-10 rounded-xl bg-indigo-500/15 text-indigo-400 border border-indigo-400/30 flex items-center justify-center font-mono font-bold mb-4 shadow-inner">
-                  A1
-                </div>
-                <h3 className="font-bold text-white text-base">Agent 1: Roadmap Structure Agent</h3>
-                <p className="text-xs font-mono text-zinc-400 mt-1">Root Planner</p>
-                <p className="text-xs text-zinc-400 mt-3 leading-relaxed">
-                  Ingests your domain, syllabus outline, and total allocated days. Generates the master chronological sequence of daily learning objectives (Day 1 ... Day N).
-                </p>
-              </div>
-            </AntigravityCard>
+        {/* ================= How it works: four numbered steps ================= */}
+        <div className="mx-auto w-full max-w-7xl px-6 pb-24 sm:px-10 sm:pb-32">
+          <Reveal className="mb-12 grid grid-cols-1 gap-6 sm:mb-16 lg:grid-cols-12">
+            <Label className="lg:col-span-3 lg:pt-3">( How it works )</Label>
+            <h2 className="font-display text-4xl font-medium leading-[1.02] tracking-[-0.03em] text-balance sm:text-6xl lg:col-span-9">
+              Four steps from not knowing to knowing.
+            </h2>
+          </Reveal>
 
-            <AntigravityCard intensity={12} glowColor="rgba(6, 182, 212, 0.2)">
-              <div className="p-6 rounded-2xl glass-panel h-full">
-                <div className="h-10 w-10 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-400/30 flex items-center justify-center font-mono font-bold mb-4 shadow-inner">
-                  A2
-                </div>
-                <h3 className="font-bold text-white text-base">Agent 2: Daily Structure Agent</h3>
-                <p className="text-xs font-mono text-zinc-400 mt-1">Curriculum Designer</p>
-                <p className="text-xs text-zinc-400 mt-3 leading-relaxed">
-                  Takes a given day from Agent 1 and breaks it down into discrete subtopics (Topic 1 ... Topic N) with calculated time budgets matching your daily hours.
-                </p>
-              </div>
-            </AntigravityCard>
+          <Chapter number="01" label="Say where" title="Tell Daari where you want to get to." aside={<StartSentence />}>
+            <p>Any subject, at any pace. Daari works out the steps in between.</p>
+          </Chapter>
 
-            <AntigravityCard intensity={12} glowColor="rgba(16, 185, 129, 0.2)">
-              <div className="p-6 rounded-2xl glass-panel h-full">
-                <div className="h-10 w-10 rounded-xl bg-emerald-500/15 text-emerald-400 border border-emerald-400/30 flex items-center justify-center font-mono font-bold mb-4 shadow-inner">
-                  A3
-                </div>
-                <h3 className="font-bold text-white text-base">Agent 3: Daily Teacher Agent</h3>
-                <p className="text-xs font-mono text-zinc-400 mt-1">Pedagogy & Resource Curator</p>
-                <p className="text-xs text-zinc-400 mt-3 leading-relaxed">
-                  Delivers comprehensive instruction, runnable code examples, verified citations (papers, textbooks), and curated online courses for each topic.
-                </p>
-              </div>
-            </AntigravityCard>
+          <Chapter number="02" label="See the way" title="See the whole way before you start." aside={<SamplePlan />}>
+            <p>Your subject becomes days, and each day becomes a few topics that fit the hours you have.</p>
+            <p>Nothing is hidden. Look ahead, skip what you know, or start in the middle.</p>
+          </Chapter>
+
+          <Chapter
+            number="03"
+            label="Learn"
+            title="Take one topic at a time."
+            aside={
+              <figure className="border-l-2 border-saffron pl-6 sm:pl-10">
+                <blockquote className="font-serif text-2xl leading-snug text-foreground sm:text-[2.1rem]">
+                  “To the uninitiated, holding a classical guitar might seem as simple as picking up an object and
+                  resting it across one&rsquo;s lap. However, in the classical guitar tradition, posture is not a
+                  static pose.”
+                </blockquote>
+                <figcaption className="mt-6">
+                  <Label>From a lesson Daari wrote on classical guitar posture</Label>
+                </figcaption>
+              </figure>
+            }
+          >
+            <p>
+              Each topic opens into a full lesson, written for your level and the minutes you set aside, with practice
+              to do and places to read further.
+            </p>
+            <p>Daari can make mistakes, so check anything important.</p>
+          </Chapter>
+
+          <div className="border-b border-foreground/15">
+            <Chapter number="04" label="Prove it" title="Prove it to yourself." aside={<BeliefDemo />}>
+              <p>
+                Reading is not the same as knowing. The Socratic AI writes down what you believe, finds the weakest
+                part, and tries to break it.
+              </p>
+              <p>If your reasoning holds, the topic is done.</p>
+            </Chapter>
           </div>
         </div>
-      </section>
 
-      {/* Footer */}
-      <footer className="border-t border-white/[0.08] py-8 text-center text-xs text-zinc-500 relative z-10">
-        <p>© 2026 Roadmap.ai. Antigravity Spatial Multi-Agent Learning Engine.</p>
-      </footer>
-    </div>
+        {/* ================= The three agents ================= */}
+        <Agents />
+
+        {/* ================= Somewhere to start ================= */}
+        <section className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-12 px-6 py-24 sm:px-10 sm:py-32 lg:grid-cols-12">
+          <Reveal className="lg:col-span-4">
+            <Label>( Somewhere to start )</Label>
+            <h2 className="mt-6 font-display text-4xl font-medium leading-[1.02] tracking-[-0.03em] sm:text-5xl">
+              Or pick one of these.
+            </h2>
+            <p className="mt-5 max-w-sm text-base leading-relaxed text-muted-foreground sm:text-lg">
+              Each one opens the start form already filled in. Change anything you like.
+            </p>
+          </Reveal>
+          <div className="lg:col-span-8">
+            <SubjectTiles />
+          </div>
+        </section>
+
+        {/* ================= Paths ================= */}
+        <section
+          id="portfolio"
+          className="mx-auto grid w-full max-w-7xl scroll-mt-24 grid-cols-1 gap-12 border-t border-foreground/15 px-6 py-24 sm:px-10 sm:py-32 lg:grid-cols-12"
+        >
+          <Reveal className="lg:col-span-4">
+            <Label>( {hasOwnPaths ? "Yours" : "Samples"} )</Label>
+            <h2 className="mt-6 font-display text-4xl font-medium leading-[1.02] tracking-[-0.03em] sm:text-5xl">
+              {hasOwnPaths ? "Your paths" : "Paths you could walk"}
+            </h2>
+            <p className="mt-5 max-w-sm text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {hasOwnPaths
+                ? "Pick up where you stopped. The line shows how far you have come."
+                : "These are samples. Open one to look around, or start your own."}
+            </p>
+          </Reveal>
+          <Reveal delay={120} className="lg:col-span-7 lg:col-start-6">
+            {isLoadingRoadmaps ? (
+              <p className="flex items-center gap-2.5 py-6 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin text-saffron" />
+                Loading paths
+              </p>
+            ) : roadmaps.length > 0 ? (
+              <>
+                <PathList roadmaps={shownPaths} signedIn={Boolean(currentUser)} />
+                {listedPaths.length > shownPaths.length && (
+                  <Link
+                    href="/studio"
+                    className="mt-6 inline-flex items-center gap-2 border-b border-foreground/30 pb-1 text-base font-semibold text-foreground transition-colors hover:border-saffron"
+                  >
+                    See all {listedPaths.length} paths in Studio
+                    <ArrowRight className="size-4" />
+                  </Link>
+                )}
+              </>
+            ) : (
+              <p className="py-6 text-base text-muted-foreground">
+                Your paths could not be loaded. Refresh the page to try again.
+              </p>
+            )}
+          </Reveal>
+        </section>
+
+        {/* ================= Closing ================= */}
+        <section className="mx-auto w-full max-w-7xl px-6 pb-24 pt-8 sm:px-10 sm:pb-32">
+          <Reveal>
+            <p className="font-display text-[clamp(3.25rem,11vw,11rem)] font-medium leading-[0.88] tracking-[-0.05em]">
+              The first step
+              <br />
+              <span className="font-serif font-normal tracking-[-0.03em] text-saffron">is small.</span>
+            </p>
+          </Reveal>
+          <Reveal
+            delay={120}
+            className="mt-12 flex flex-col gap-6 border-t border-foreground/15 pt-6 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <p className="text-lg text-muted-foreground">One subject, one day, one topic.</p>
+            <button
+              type="button"
+              onClick={() => startPath()}
+              className="inline-flex h-12 w-fit cursor-pointer items-center gap-2 rounded-full bg-saffron px-7 text-base font-semibold text-black transition-colors hover:bg-orange-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-saffron"
+            >
+              Start a path
+              <ArrowRight className="size-4" />
+            </button>
+          </Reveal>
+        </section>
+
+        <SiteFooter />
+      </div>
+    </main>
   );
 }

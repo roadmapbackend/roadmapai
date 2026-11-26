@@ -24,26 +24,38 @@ def record_evaluation_result(
     feedback_summary: str,
     raw_rubric: Dict[str, Any]
 ) -> Dict[str, Any]:
-    supabase = get_supabase_admin()
-    
-    # 1. Store evaluation
-    eval_insert = supabase.table("evaluations").insert({
-        "session_id": session_id,
-        "module_id": module_id,
-        "user_id": user_id,
-        "score": score,
-        "is_passed": is_passed,
-        "misconceptions": misconceptions,
-        "remediation_topics": remediation_topics,
-        "feedback_summary": feedback_summary,
-        "raw_rubric": raw_rubric
-    }).execute()
-    
-    # 2. Update module status
-    new_status = "mastered" if is_passed else "remediation_needed"
-    supabase.table("curriculum_modules").update({
-        "status": new_status,
-        "score": score
-    }).eq("id", module_id).execute()
-    
-    return eval_insert.data[0] if eval_insert.data else {}
+    try:
+        supabase = get_supabase_admin()
+        
+        # 1. Store evaluation
+        eval_insert = supabase.table("evaluations").insert({
+            "session_id": session_id,
+            "module_id": module_id,
+            "user_id": user_id,
+            "score": score,
+            "is_passed": is_passed,
+            "misconceptions": misconceptions,
+            "remediation_topics": remediation_topics,
+            "feedback_summary": feedback_summary,
+            "raw_rubric": raw_rubric
+        }).execute()
+        
+        # 2. Update module status
+        new_status = "mastered" if is_passed else "remediation_needed"
+        supabase.table("curriculum_modules").update({
+            "status": new_status,
+            "score": score
+        }).eq("id", module_id).execute()
+        
+        return eval_insert.data[0] if eval_insert.data else {
+            "score": score,
+            "is_passed": is_passed,
+            "feedback_summary": feedback_summary
+        }
+    except Exception as exc:
+        print(f"[LearnerStore] record_evaluation_result notice: {exc}")
+        return {
+            "score": score,
+            "is_passed": is_passed,
+            "feedback_summary": feedback_summary
+        }

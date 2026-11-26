@@ -1,4 +1,6 @@
 import { createClient } from "@/lib/supabase/client";
+import { synthesizeResearchedLesson } from "@/lib/knowledge-engine";
+import { NO_USAGE, addUsage, parseUsage, totalTokens, type TokenUsage } from "@/lib/usage";
 
 export interface SupabaseTopic {
   id: string;
@@ -143,6 +145,81 @@ export function classifyDomain(domain: string): string {
   ) {
     return "design_arts";
   }
+  if (
+    ctx.includes("bgmi") ||
+    ctx.includes("battlegrounds") ||
+    ctx.includes("pubg") ||
+    ctx.includes("valorant") ||
+    ctx.includes("csgo") ||
+    ctx.includes("cs:go") ||
+    ctx.includes("counter-strike") ||
+    ctx.includes("fortnite") ||
+    ctx.includes("apex") ||
+    ctx.includes("cod") ||
+    ctx.includes("call of duty") ||
+    ctx.includes("warzone") ||
+    ctx.includes("league of legends") ||
+    ctx.includes("lol") ||
+    ctx.includes("dota") ||
+    ctx.includes("overwatch") ||
+    ctx.includes("rocket league") ||
+    ctx.includes("rainbow six") ||
+    ctx.includes("r6") ||
+    ctx.includes("free fire") ||
+    ctx.includes("gaming") ||
+    ctx.includes("esports") ||
+    ctx.includes("gameplay") ||
+    ctx.includes("battle royale") ||
+    ctx.includes("fps") ||
+    ctx.includes("moba") ||
+    ctx.includes("chess") ||
+    ctx.includes("speedrun")
+  ) {
+    return "gaming_esports";
+  }
+  if (
+    ctx.includes("football") ||
+    ctx.includes("soccer") ||
+    ctx.includes("basketball") ||
+    ctx.includes("tennis") ||
+    ctx.includes("badminton") ||
+    ctx.includes("cricket") ||
+    ctx.includes("boxing") ||
+    ctx.includes("mma") ||
+    ctx.includes("martial arts") ||
+    ctx.includes("wrestling") ||
+    ctx.includes("swimming") ||
+    ctx.includes("running") ||
+    ctx.includes("marathon") ||
+    ctx.includes("gym") ||
+    ctx.includes("workout") ||
+    ctx.includes("fitness") ||
+    ctx.includes("bodybuilding") ||
+    ctx.includes("weightlifting") ||
+    ctx.includes("powerlifting") ||
+    ctx.includes("calisthenics") ||
+    ctx.includes("crossfit") ||
+    ctx.includes("yoga") ||
+    ctx.includes("pilates")
+  ) {
+    return "athletics_sports";
+  }
+  if (
+    ctx.includes("cooking") ||
+    ctx.includes("culinary") ||
+    ctx.includes("baking") ||
+    ctx.includes("pastry") ||
+    ctx.includes("chef") ||
+    ctx.includes("food") ||
+    ctx.includes("knife skills") ||
+    ctx.includes("barista") ||
+    ctx.includes("coffee") ||
+    ctx.includes("espresso") ||
+    ctx.includes("cocktail") ||
+    ctx.includes("mixology")
+  ) {
+    return "culinary_craft";
+  }
   return "general";
 }
 
@@ -155,7 +232,37 @@ export function generateDomainDays(
 
   let baseStages: Array<[string, string, string[]]>;
 
-  if (category === "data_science") {
+  if (category === "gaming_esports") {
+    baseStages = [
+      [`Controls, Device Calibration, HUD Layout & Ergonomics in ${clean}`, "Custom HUD button mapping, gyroscope vs finger sensitivity calibration, crosshair placement baseline, and display refresh optimization.", ["Custom HUD mapping & 4-finger claw layout", "Gyroscope & ADS sensitivity tuning", "Crosshair placement & centering drills"]],
+      [`Mechanical Execution & Recoil Control Fundamentals`, "Mastering spray pull-down muscle memory, burst firing, hip-fire accuracy, and quick peek-and-fire agility.", ["Vertical & horizontal recoil compensation", "Jiggle peeking & pre-aim angles", "Hip-fire tracking at close range"]],
+      [`Weapon Arsenal, Ballistics & Utility Mastery`, "Damage falloff curves, optimal attachment synergies, grenade cooking trajectories, and smoke wall tactical cover.", ["Weapon tier list & TTK comparisons", "Frag grenade cooking & ricochet angles", "Defensive & offensive smoke deployment"]],
+      [`Drop Strategy, Early Game Looting & Initial Positioning`, "Hot-drop vs cold-drop landing routes, fast looting routes, vehicle securing priority, and compound clearing.", ["Parachute trajectory & early drop routes", "Fast loot priority & armor optimization", "Compound breach & room clearing mechanics"]],
+      [`Map Navigation, Zone Rotations & Circle Prediction`, "Decoupling circle shifts, predicting late-game zones, navigating open terrain, and vehicle-assisted edge control.", ["Circle shift reading & timing windows", "High-ground & terrain dip exploitation", "Gatekeeping rotations along the blue zone"]],
+      [`Squad Roles, Comms & Tactical Teamfighting`, "Entry fragger execution, IGL shotcalling, crossfire angles, trade-frag discipline, and compound siege protocols.", ["Effective callouts & information sharing", "Crossfire setups & bait-and-switch angles", "Trade-fragging & revives under pressure"]],
+      [`Endgame Clutch Decision Making, High-Pressure Play & Capstone Mastery in ${clean}`, "Final circle positioning, 1vX clutch composure, heal-battle awareness, utility conservation, and tournament VOD review.", ["1vX isolation & clutch decision trees", "Final circle utility barrage & smoke paths", "Post-match VOD review & tilt management"]],
+    ];
+  } else if (category === "athletics_sports") {
+    baseStages = [
+      [`Biomechanical Foundations, Posture & Baseline Mobility in ${clean}`, "Kinetic chain alignment, joint mobility, core stability, and baseline movement screening.", ["Movement screening & posture alignment", "Dynamic mobility & joint prep", "Core bracing & kinetic stability"]],
+      [`Fundamental Movement Patterns & Motor Recruitment`, "Mastering primary movement mechanics, weight distribution, and neuromuscular coordination.", ["Primary movement execution mechanics", "Force generation & weight transfer", "Neuromuscular motor recruitment"]],
+      [`Progressive Intensity, Cadence & Technique Drills`, "Ramping movement velocity, refining cadence, and maintaining technical form under moderate cardiovascular load.", ["Cadence regulation & rhythm consistency", "Form maintenance under elevated heart rate", "Progressive overload & interval pacing"]],
+      [`Energy System Conditioning, Pacing & Endurance`, "Aerobic base building, anaerobic threshold management, and strategic pacing throughout exertion.", ["Lactate threshold & pacing discipline", "Breathing mechanics & recovery cadence", "Energy expenditure conservation"]],
+      [`Complex Sequencing, Agility & Explosive Power Transfer`, "Multi-planar agility, reactive footwork, rapid deceleration, and explosive kinetic output.", ["Deceleration mechanics & eccentric control", "Multi-directional change-of-direction", "Explosive triple extension & power transfer"]],
+      [`Tactical Execution, Situational Adaptability & Injury Prevention`, "Reading opponents/conditions, tactical positioning, active recovery protocols, and joint longevity.", ["Situational decision-making under pressure", "Common movement breakdown mitigations", "Active recovery & soft tissue care"]],
+      [`Competition Readiness, Tapering & Capstone Performance in ${clean}`, "Synthesizing technique, mental readiness, peak performance pacing, and capstone athletic testing.", ["Peak performance testing & metric benchmarks", "Pre-event mental preparation & arousal regulation", "Capstone performance execution"]],
+    ];
+  } else if (category === "culinary_craft") {
+    baseStages = [
+      [`Knife Skills, Mise en Place & Workstation Ergonomics in ${clean}`, "Proper knife grips, classic vegetable cuts, workstation efficiency, and food hygiene fundamentals.", ["Chefs knife grip & guiding hand technique", "Precision cuts (julienne, brunoise, chiffonade)", "Workstation organization & cross-contamination safety"]],
+      [`Heat Transfer Mechanisms & Temperature Management`, "Conduction, convection, radiant heat, pan selection, oil smoke points, and heat control.", ["Pan conductivity (cast iron, stainless, non-stick)", "Oil smoke points & thermal regulation", "Surface moisture management & sizzling acoustics"]],
+      [`The Flavor Matrix: Salt, Acid, Fat, Heat & Seasoning Timing`, "Understanding palatability balance, early vs late salting, acid brightening, and flavor layering.", ["The physiological impact of salt on food", "Balancing richness with acid (vinegar, citrus)", "Layering aromatics and herbs across cooking phases"]],
+      [`Stocks, Emulsions, Mother Sauces & Pan Deglazing`, "Creating foundational stocks, stable emulsions (mayo, vinaigrette, hollandaise), and fond reduction sauces.", ["Stock extraction & gelatin development", "Emulsification principles & recovery from broken sauces", "Deglazing fond & pan sauce finishing"]],
+      [`Protein Cookery, Maillard Reaction & Resting Science`, "Searing, internal temperature staging, collagen breakdown, carryover cooking, and muscle resting.", ["Maillard reaction optimization & crust formation", "Internal temperature targeting with thermometers", "Protein fiber relaxation & juice retention during resting"]],
+      [`Vegetable Cookery, Starch Chemistry & Texture Contrasts`, "Blanching, caramelization, roasting, starch gelatinization, and pairing textural elements.", ["Chlorophyll preservation & shock cooling", "Caramelizing root vegetables & alliums", "Balancing crunchy, creamy, and tender elements"]],
+      [`Multi-Element Timing, Plating Composition & Capstone Dinner in ${clean}`, "Executing multi-component recipes simultaneously, temperature staging, elegant plating, and taste auditing.", ["Simultaneous multi-dish time management", "Visual plating aesthetics (height, color, negative space)", "Capstone signature dish execution & sensory critique"]],
+    ];
+  } else if (category === "data_science") {
     baseStages = [
       [`Foundations & Vectorized Arrays with NumPy & Pandas in ${clean}`, "Environment setup, tabular data structures, array broadcasting, and initial schema auditing.", ["Data ingestion & schema auditing", "Vectorized array arithmetic", "DataFrame filtering and transformations"]],
       [`Exploratory Data Analysis (EDA) & Distribution Diagnostics`, "Uncovering central tendency, dispersion, skewness, outliers, and multivariate correlation matrices.", ["Summary metrics & variance analysis", "Outlier detection with Tukey IQR", "Multivariate heatmaps & pairplots"]],
@@ -227,13 +334,13 @@ export function generateDomainDays(
     ];
   } else {
     baseStages = [
-      [`Foundational Mental Models, Terminology & Setup in ${clean}`, `Core concepts, baseline taxonomy, and environmental setup for mastering ${clean}.`, ["Establish key domain definitions", "Survey foundational literature & tools", "Set up operational environment"]],
-      [`Core Paradigms, Structural Rules & Baseline Grammar`, `Exploring primary workflows, toolchains, and standardized approaches in ${clean}.`, ["Workflow establishment", "Master standard operating procedures", "Reproducible baseline practice"]],
-      [`Applied Mechanics & Hands-On Workflows (Part 1)`, `Hands-on execution of baseline challenges and fundamental techniques in ${clean}.`, ["Apply core principles", "Execute guided practical drills", "Evaluate baseline outcomes"]],
-      [`Intermediate Problem Solving & Analysis (Part 2)`, `Diving deeper into structural patterns and solving complex problem sets in ${clean}.`, ["Deconstruct intermediate challenges", "Implement structured solutions", "Iterative refinement"]],
-      [`Advanced Nuances, Edge Cases & Trade-Off Analysis`, `Navigating constraints, failure modes, boundary conditions, and quality trade-offs in ${clean}.`, ["Analyze boundary constraints", "Mitigate common failure modes", "Compare architectural approaches"]],
-      [`Quality Assurance, Verification & Benchmarking`, `Testing, validating, and measuring efficacy against established benchmarks in ${clean}.`, ["Design verification criteria", "Execute rigorous testing", "Document performance trade-offs"]],
-      [`Capstone Project Integration & Real-World Synthesis in ${clean}`, `Synthesizing all acquired competencies into a cohesive, portfolio-grade milestone.`, ["Architect capstone project", "Implement end-to-end deliverables", "Final review & retrospective"]],
+      [`Foundations, Core Concepts & Essential Setup in ${clean}`, `Core principles, mental models, and initial setup for ${clean}.`, ["Core taxonomy & terminology", "Foundational mental models & orientation", "Initial practice environment setup"]],
+      [`Fundamental Techniques & Baseline Workflows`, `Exploring standard techniques, baseline execution, and core routines.`, ["Primary technique execution", "Standard operating workflows", "Essential baseline practice"]],
+      [`Applied Execution & Progressive Practice Drills (Part 1)`, `Hands-on execution of canonical challenges, practical procedures, and active drills.`, ["Hands-on drill execution", "Form and execution accuracy", "Feedback loop calibration"]],
+      [`Intermediate Strategy, Nuance & Pattern Recognition (Part 2)`, `Navigating complex scenarios, deeper patterns, and non-trivial situations.`, ["Complex scenario breakdown", "Intermediate pattern recognition", "Adaptive execution drills"]],
+      [`High-Pressure Scenarios, Common Pitfalls & Error Correction`, `Analyzing high-pressure situations, amateur blunders, and mistake recovery.`, ["Common blunder identification", "Error recovery protocols", "Composure under pressure"]],
+      [`Empirical Benchmarking & Performance Diagnostics`, `Systematic evaluation, skill benchmarking, and diagnostic self-assessment.`, ["Self-assessment benchmarks", "Quality metrics & performance review", "Targeted refinement drills"]],
+      [`Capstone Project Synthesis & Mastery Milestone in ${clean}`, `Integrating all domain competencies into a cohesive, portfolio-grade capstone achievement.`, ["End-to-end skill synthesis", "Capstone execution & demonstration", "Retrospective & continuous mastery path"]],
     ];
   }
 
@@ -276,107 +383,433 @@ export function getDomainTopicsForDay(
   domain: string,
   dailyHours: number,
   dayNumber: number,
-  dayTitle: string = ""
+  dayTitle: string = "",
+  learningObjectives: string[] = [],
+  dayDescription: string = "",
+  skillLevel: string = "intermediate"
 ): Array<{ topic_number: number; title: string; description: string; estimated_minutes: number }> {
+  const category = classifyDomain(domain);
   const cleanDomain = domain.trim();
-  const cleanTitle = dayTitle.replace(/^Day\s+\d+:\s*/, "").trim() || `Applied Principles for Day ${dayNumber}`;
-  const totalMinutes = Math.round(dailyHours * 60);
-  const topicCount = dailyHours <= 1.0 ? 2 : dailyHours <= 3.0 ? 3 : 4;
-  const minsPerTopic = Math.floor(totalMinutes / topicCount);
+  const cleanTitle = dayTitle.replace(/^Day\s+\d+:\s*/i, "").trim() || `Applied Principles for Day ${dayNumber}`;
+  const totalMinutes = Math.round((Number(dailyHours) || 2.0) * 60);
+  const level = skillLevel.toLowerCase();
 
-  const subtopicTemplates = [
-    {
-      title: `Foundations & Key Principles: ${cleanTitle}`,
-      desc: `Deconstructing the core mechanisms, theoretical underpinnings, and mental models of ${cleanTitle} in ${cleanDomain}.`,
-    },
-    {
-      title: "Applied Hands-On Drills & Workflow Execution",
-      desc: `Structured practice exercises and practical step-by-step implementation for ${cleanTitle}.`,
-    },
-    {
-      title: "Edge Cases, Boundary Conditions & Diagnostics",
-      desc: `Identifying failure modes, common pitfalls, and verifying quality standards for ${cleanTitle}.`,
-    },
-    {
-      title: "Integration Milestone & Mastery Synthesis",
-      desc: `Consolidating today's learning into a verifiable micro-project and review milestone in ${cleanDomain}.`,
-    },
-  ];
+  // 1. If explicit learning objectives exist, order them into a clear pedagogical progression (Intro -> Intermediate -> Advanced)
+  if (learningObjectives && learningObjectives.length > 0) {
+    const validObjectives = learningObjectives.filter((obj) => obj && obj.trim().length > 0);
+    if (validObjectives.length >= 2) {
+      // Determine topic count based on daily hours commitment
+      const targetCount = dailyHours <= 1.0 ? 2 : dailyHours <= 2.5 ? Math.min(3, validObjectives.length) : Math.min(4, validObjectives.length);
+      const selected = validObjectives.slice(0, targetCount);
+      const mins = Math.floor(totalMinutes / selected.length);
+      
+      return selected.map((obj, idx) => {
+        const cleanObj = obj.trim();
+        let rolePrefix = "";
+        let desc = "";
+        if (idx === 0) {
+          rolePrefix = category === "gaming_esports"
+            ? "Setup & Fundamentals: "
+            : category === "athletics_sports" || category === "music_arts" || category === "culinary_craft"
+            ? "Ergonomics & Mechanics: "
+            : level.includes("beg")
+            ? "Intuitive Foundations: "
+            : "Core Principles: ";
+          desc = `Foundational mental models, terminology, and core intuition for ${cleanObj} in ${cleanDomain}.`;
+        } else if (idx === selected.length - 1) {
+          rolePrefix = category === "gaming_esports"
+            ? "Clutch Play & Pitfall Prevention: "
+            : category === "athletics_sports" || category === "music_arts" || category === "culinary_craft"
+            ? "Nuance & Error Recovery: "
+            : "Practical Mastery & Pitfall Prevention: ";
+          desc = `Testing boundaries, identifying common pitfalls, and validating mastery of ${cleanObj}.`;
+        } else {
+          rolePrefix = category === "gaming_esports"
+            ? "Tactical Drills & Execution: "
+            : category === "athletics_sports" || category === "music_arts" || category === "culinary_craft"
+            ? "Technique Drills & Execution: "
+            : "Applied Execution & Drills: ";
+          desc = `Concrete practical execution, step-by-step techniques, and applied practice for ${cleanObj}.`;
+        }
 
-  return subtopicTemplates.slice(0, topicCount).map((t, idx) => ({
+        return {
+          topic_number: idx + 1,
+          title: cleanObj.includes(":") ? cleanObj : `${rolePrefix}${cleanObj}`,
+          description: desc,
+          estimated_minutes: idx === selected.length - 1 ? totalMinutes - (mins * (selected.length - 1)) : mins,
+        };
+      });
+    }
+  }
+
+  // 2. Synthesize substantive, domain-specific subtopics with a natural learning progression
+  const topicPool: Array<{ title: string; desc: string }> = [];
+
+  const titleParts = cleanTitle.split(/[:&–—]/).map((s) => s.trim()).filter(Boolean);
+  const primaryConcept = titleParts[0] || cleanTitle;
+  const secondaryConcept = titleParts[1] || `${primaryConcept} Applied Execution`;
+  const tertiaryConcept = titleParts[2] || `${primaryConcept} Nuance & Pitfalls`;
+
+  // Stage 1: Introduction & Intuitive Mental Model
+  topicPool.push({
+    title: `${primaryConcept}: Foundations, Mental Models & Setup`,
+    desc: `Establishing the core intuition, mental models, and prerequisite principles for ${primaryConcept} in ${cleanDomain}.`,
+  });
+
+  // Stage 2: Intermediate Applied Mechanics & Workflows
+  topicPool.push({
+    title: `${secondaryConcept}: Practical Execution & Drills`,
+    desc: `Step-by-step methodology, verified techniques, and hands-on practice for ${secondaryConcept}.`,
+  });
+
+  // Stage 3: Advanced Nuances & Pitfalls (if commitment > 1.0 hr/day)
+  if (dailyHours > 1.2 || titleParts.length > 2) {
+    topicPool.push({
+      title: `${tertiaryConcept}: Common Pitfalls, Edge Cases & Mastery`,
+      desc: `Evaluating high-pressure scenarios, common blunders, and mistake correction protocols.`,
+    });
+  }
+
+  // Stage 4: Intensive Synthesis & Benchmarking (if commitment >= 3.0 hrs/day)
+  if (dailyHours >= 3.0) {
+    topicPool.push({
+      title: `${primaryConcept}: Advanced Benchmarks & Synthesis Capstone`,
+      desc: `Comprehensive end-to-end integration, performance benchmarking, and mastery verification in ${cleanDomain}.`,
+    });
+  }
+
+  const mins = Math.floor(totalMinutes / topicPool.length);
+  return topicPool.map((t, idx) => ({
     topic_number: idx + 1,
-    title: `Topic ${idx + 1}: ${t.title}`,
+    title: t.title,
     description: t.desc,
-    estimated_minutes: minsPerTopic,
+    estimated_minutes: idx === topicPool.length - 1 ? totalMinutes - (mins * (topicPool.length - 1)) : mins,
   }));
 }
 
-export async function getUserActiveRoadmap(userId: string) {
-  const supabase = createClient();
+/**
+ * Invokes Agent 2 (Daily Structure Agent) to dynamically decompose days with full LLM flexibility
+ */
+export async function fetchDayTopicsWithAgent2(
+  domain: string,
+  dailyHours: number,
+  dayNumber: number,
+  dayTitle: string = "",
+  learningObjectives: string[] = [],
+  dayDescription: string = "",
+  skillLevel: string = "intermediate",
+  onUsage?: (usage: TokenUsage) => void
+): Promise<Array<{ topic_number: number; title: string; description: string; estimated_minutes: number }>> {
+  if (typeof window !== "undefined") {
+    try {
+      const res = await fetch("/api/structure", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          domain,
+          dailyHours,
+          dayNumber,
+          dayTitle,
+          learningObjectives,
+          dayDescription,
+          skillLevel,
+        }),
+      });
 
-  // 1. Fetch latest active roadmap for this user
-  const { data: roadmap, error: rError } = await supabase
-    .from("roadmaps")
-    .select("*")
-    .eq("user_id", userId)
-    .eq("status", "active")
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.topics) && data.topics.length > 0) {
+          onUsage?.(parseUsage(data.usage));
+          return data.topics;
+        }
+      }
+    } catch (err) {
+      console.debug("Agent 2 structure fetch notice (using organic deconstruction):", err);
+    }
+  }
 
-  if (rError || !roadmap) {
+  return getDomainTopicsForDay(domain, dailyHours, dayNumber, dayTitle, learningObjectives, dayDescription, skillLevel);
+}
+
+export interface RoadmapSummary {
+  id: string;
+  user_id: string;
+  title: string;
+  domain_context: string;
+  domain_archetype?: string;
+  total_days: number;
+  daily_hours_commitment: number;
+  skill_level: string;
+  status: string;
+  is_pinned?: boolean;
+  progress_percentage?: number;
+  last_accessed_at?: string;
+  created_at: string;
+  days_count?: number;
+  completed_topics_count?: number;
+  total_topics_count?: number;
+}
+
+export async function getUserRoadmaps(userId: string): Promise<RoadmapSummary[]> {
+  if (!userId || userId === "guest" || userId.startsWith("guest-")) {
+    return getFeaturedDemoRoadmaps();
+  }
+
+  try {
+    const supabase = createClient();
+    const { data: roadmaps, error } = await supabase
+      .from("roadmaps")
+      .select("*, roadmap_days(id, status, roadmap_topics(id, status))")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error || !roadmaps) {
+      console.warn("getUserRoadmaps fallback notice:", error);
+      return getFeaturedDemoRoadmaps();
+    }
+
+    if (roadmaps.length === 0) {
+      return getFeaturedDemoRoadmaps();
+    }
+
+    return roadmaps.map((r: any) => {
+      let totalTopics = 0;
+      let completedTopics = 0;
+      const days = r.roadmap_days || [];
+      days.forEach((d: any) => {
+        const topics = d.roadmap_topics || [];
+        totalTopics += topics.length;
+        completedTopics += topics.filter((t: any) => t.status === "completed").length;
+      });
+
+      const calcProgress = totalTopics > 0 ? Math.round((completedTopics / totalTopics) * 100) : 0;
+      const meta = r.metadata || {};
+
+      return {
+        id: r.id,
+        user_id: r.user_id,
+        title: r.title,
+        domain_context: r.domain_context,
+        domain_archetype: r.domain_archetype || meta.domain_archetype || classifyDomain(r.domain_context),
+        total_days: r.total_days,
+        daily_hours_commitment: r.daily_hours_commitment,
+        skill_level: r.skill_level || "intermediate",
+        status: r.status || "active",
+        is_pinned: r.is_pinned !== undefined ? !!r.is_pinned : !!meta.is_pinned,
+        progress_percentage: r.progress_percentage !== undefined ? r.progress_percentage : (meta.progress_percentage || calcProgress),
+        last_accessed_at: r.last_accessed_at || meta.last_accessed_at || r.created_at,
+        created_at: r.created_at,
+        days_count: days.length || r.total_days,
+        completed_topics_count: completedTopics,
+        total_topics_count: totalTopics,
+      };
+    });
+  } catch (err) {
+    console.warn("getUserRoadmaps exception (using empty):", err);
+    return [];
+  }
+}
+
+export async function getRoadmapById(roadmapId: string) {
+  if (!roadmapId || roadmapId.startsWith("guest-") || roadmapId.startsWith("local-") || roadmapId === "demo-1" || roadmapId === "demo-2" || roadmapId === "demo-3") {
     return null;
   }
 
-  // 2. Fetch days
-  const { data: days, error: dError } = await supabase
-    .from("roadmap_days")
-    .select("*")
-    .eq("roadmap_id", roadmap.id)
-    .order("day_number", { ascending: true });
+  try {
+    const supabase = createClient();
 
-  if (dError || !days) {
-    return { roadmap, days: [] };
-  }
+    // 1. Fetch roadmap
+    const { data: roadmap, error: rError } = await supabase
+      .from("roadmaps")
+      .select("*")
+      .eq("id", roadmapId)
+      .maybeSingle();
 
-  // 3. Fetch all topics for this roadmap
-  const { data: topics } = await supabase
-    .from("roadmap_topics")
-    .select("*")
-    .eq("roadmap_id", roadmap.id)
-    .order("topic_number", { ascending: true });
+    if (rError || !roadmap) return null;
 
-  const topicsByDay: Record<string, SupabaseTopic[]> = {};
-  (topics || []).forEach((t: any) => {
-    if (!topicsByDay[t.day_id]) topicsByDay[t.day_id] = [];
-    topicsByDay[t.day_id].push({
-      id: t.id,
-      day_id: t.day_id,
-      roadmap_id: t.roadmap_id,
-      topic_number: t.topic_number,
-      title: t.title,
-      description: t.description || "",
-      estimated_minutes: t.estimated_minutes || 45,
-      status: t.status || "not_started",
+    // Bump last_accessed_at in background inside metadata
+    try {
+      const existingMeta = roadmap.metadata || {};
+      await supabase
+        .from("roadmaps")
+        .update({
+          metadata: {
+            ...existingMeta,
+            last_accessed_at: new Date().toISOString(),
+          },
+        })
+        .eq("id", roadmapId);
+    } catch {
+      // non-blocking
+    }
+
+    // 2. Fetch days
+    const { data: days, error: dError } = await supabase
+      .from("roadmap_days")
+      .select("*")
+      .eq("roadmap_id", roadmapId)
+      .order("day_number", { ascending: true });
+
+    if (dError || !days) {
+      return { roadmap, days: [] };
+    }
+
+    // 3. Fetch topics
+    const { data: topics } = await supabase
+      .from("roadmap_topics")
+      .select("*")
+      .eq("roadmap_id", roadmapId)
+      .order("topic_number", { ascending: true });
+
+    const topicsByDay: Record<string, SupabaseTopic[]> = {};
+    (topics || []).forEach((t: any) => {
+      if (!topicsByDay[t.day_id]) topicsByDay[t.day_id] = [];
+      topicsByDay[t.day_id].push({
+        id: t.id,
+        day_id: t.day_id,
+        roadmap_id: t.roadmap_id,
+        topic_number: t.topic_number,
+        title: t.title,
+        description: t.description || "",
+        estimated_minutes: t.estimated_minutes || 45,
+        status: t.status || "not_started",
+      });
     });
-  });
 
-  const structuredDays: SupabaseDay[] = days.map((d: any) => ({
-    id: d.id,
-    roadmap_id: d.roadmap_id,
-    day_number: d.day_number,
-    title: d.title,
-    description: d.description || "",
-    learning_objectives: d.learning_objectives || [],
-    status: d.status || "not_started",
-    topics: topicsByDay[d.id] || [],
-  }));
+    const structuredDays: SupabaseDay[] = days.map((d: any) => ({
+      id: d.id,
+      roadmap_id: d.roadmap_id,
+      day_number: d.day_number,
+      title: d.title,
+      description: d.description || "",
+      learning_objectives: d.learning_objectives || [],
+      status: d.status || "not_started",
+      topics: topicsByDay[d.id] || [],
+    }));
 
-  return {
-    roadmap,
-    days: structuredDays,
-  };
+    return {
+      roadmap,
+      days: structuredDays,
+    };
+  } catch (err) {
+    console.warn("getRoadmapById exception:", err);
+    return null;
+  }
 }
+
+export async function deleteRoadmap(roadmapId: string) {
+  if (!roadmapId || roadmapId.startsWith("guest-") || roadmapId.startsWith("local-") || roadmapId.startsWith("demo-")) {
+    return true;
+  }
+  try {
+    const supabase = createClient();
+    const { error } = await supabase.from("roadmaps").delete().eq("id", roadmapId);
+    if (error) {
+      console.error("deleteRoadmap error:", error);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.error("deleteRoadmap exception:", err);
+    return false;
+  }
+}
+
+export function getFeaturedDemoRoadmaps(): RoadmapSummary[] {
+  return [
+    {
+      id: "demo-1",
+      user_id: "guest",
+      title: "14-Day Intensive: Distributed Systems & Consensus Engines",
+      domain_context: "Distributed Systems & Consensus Engines",
+      domain_archetype: "devops_cloud",
+      total_days: 14,
+      daily_hours_commitment: 2.5,
+      skill_level: "advanced",
+      status: "active",
+      is_pinned: true,
+      progress_percentage: 35,
+      last_accessed_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
+      days_count: 14,
+      completed_topics_count: 5,
+      total_topics_count: 42,
+    },
+    {
+      id: "demo-2",
+      user_id: "guest",
+      title: "7-Day Foundation: Classical Guitar Biomechanics & Bach Polyphony",
+      domain_context: "Classical Guitar & Bach Polyphony",
+      domain_archetype: "music_arts",
+      total_days: 7,
+      daily_hours_commitment: 2.0,
+      skill_level: "intermediate",
+      status: "active",
+      is_pinned: false,
+      progress_percentage: 15,
+      last_accessed_at: new Date(Date.now() - 86400000).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 6).toISOString(),
+      days_count: 7,
+      completed_topics_count: 3,
+      total_topics_count: 21,
+    },
+    {
+      id: "demo-3",
+      user_id: "guest",
+      title: "21-Day Mastery: Quantum Mechanics & Analytical Solvers",
+      domain_context: "Quantum Mechanics & Analytical Solvers",
+      domain_archetype: "science_math",
+      total_days: 21,
+      daily_hours_commitment: 3.0,
+      skill_level: "expert",
+      status: "active",
+      is_pinned: false,
+      progress_percentage: 60,
+      last_accessed_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+      created_at: new Date(Date.now() - 86400000 * 12).toISOString(),
+      days_count: 21,
+      completed_topics_count: 38,
+      total_topics_count: 63,
+    },
+  ];
+}
+
+/** Days and topics for a built-in sample roadmap */
+export function buildSampleDays(roadmap: RoadmapSummary): SupabaseDay[] {
+  return generateDomainDays(roadmap.domain_context, roadmap.total_days).map((d, idx) => {
+    const dayId = `${roadmap.id}-day-${d.day_number}`;
+    return {
+      id: dayId,
+      roadmap_id: roadmap.id,
+      day_number: d.day_number,
+      title: d.title,
+      description: d.description,
+      learning_objectives: d.learning_objectives,
+      status: idx === 0 ? "in_progress" : "not_started",
+      topics: getDomainTopicsForDay(
+        roadmap.domain_context,
+        roadmap.daily_hours_commitment,
+        d.day_number,
+        d.title,
+        d.learning_objectives,
+        d.description,
+        roadmap.skill_level
+      ).map((t) => ({
+        id: `${dayId}-topic-${t.topic_number}`,
+        day_id: dayId,
+        roadmap_id: roadmap.id,
+        topic_number: t.topic_number,
+        title: t.title,
+        description: t.description,
+        estimated_minutes: t.estimated_minutes,
+        status: idx === 0 && t.topic_number === 1 ? "in_progress" : "not_started",
+      })),
+    };
+  });
+}
+
+/** Rough size of planning one day, only to check there is room for it */
+const PLAN_TOKENS_PER_DAY = 1500;
 
 export async function saveRoadmapToSupabase(
   userId: string,
@@ -385,20 +818,14 @@ export async function saveRoadmapToSupabase(
   dailyHours: number,
   skillLevel: string = "intermediate"
 ) {
+  // Check there is room before starting; what it really used is recorded at the end
+  await assertUserTokenBudget(userId, totalDays * PLAN_TOKENS_PER_DAY);
+  let planUsage = NO_USAGE;
+
   const supabase = createClient();
+  const archetype = classifyDomain(domain);
 
-  // Archive previous active roadmaps for this user
-  try {
-    await supabase
-      .from("roadmaps")
-      .update({ status: "archived" })
-      .eq("user_id", userId)
-      .eq("status", "active");
-  } catch (e) {
-    console.warn("Could not archive previous roadmaps:", e);
-  }
-
-  // 1. Insert into roadmaps table
+  // 1. Insert into roadmaps table using canonical columns and storing extended attributes in metadata
   const { data: roadmap, error: rErr } = await supabase
     .from("roadmaps")
     .insert({
@@ -409,7 +836,12 @@ export async function saveRoadmapToSupabase(
       daily_hours_commitment: dailyHours,
       skill_level: skillLevel,
       status: "active",
-      metadata: {},
+      metadata: {
+        domain_archetype: archetype,
+        is_pinned: false,
+        progress_percentage: 0.0,
+        last_accessed_at: new Date().toISOString(),
+      },
     })
     .select()
     .single();
@@ -418,7 +850,7 @@ export async function saveRoadmapToSupabase(
     throw new Error(rErr?.message || "Failed to create roadmap in Supabase");
   }
 
-  // 2. Generate structured days universally
+  // 2. Generate structured days universally using schema-safe columns
   const domainDays = generateDomainDays(domain, totalDays);
   const daysToInsert = domainDays.map((d) => ({
     roadmap_id: roadmap.id,
@@ -442,7 +874,18 @@ export async function saveRoadmapToSupabase(
   // 3. Bulk insert structured topics for ALL days upfront into Supabase
   const allTopicRecords = [];
   for (const day of insertedDays) {
-    const topicsForThisDay = getDomainTopicsForDay(domain, dailyHours, day.day_number, day.title);
+    const topicsForThisDay = await fetchDayTopicsWithAgent2(
+      domain,
+      dailyHours,
+      day.day_number,
+      day.title,
+      day.learning_objectives,
+      day.description,
+      skillLevel,
+      (usage) => {
+        planUsage = addUsage(planUsage, usage);
+      }
+    );
     for (const t of topicsForThisDay) {
       allTopicRecords.push({
         day_id: day.id,
@@ -485,11 +928,17 @@ export async function saveRoadmapToSupabase(
   const firstDay = insertedDays[0];
   const firstDayTopics = topicsByDay[firstDay.id] || [];
   if (firstDayTopics.length > 0) {
-    await getOrSaveLessonFromSupabase(firstDayTopics[0].id, firstDayTopics[0].title, domain, firstDayTopics[0].description);
+    await getOrSaveLessonFromSupabase(firstDayTopics[0].id, firstDayTopics[0].title, domain, {
+      topicDesc: firstDayTopics[0].description,
+      estimatedMinutes: firstDayTopics[0].estimated_minutes || 45,
+      dailyHours: roadmap.daily_hours_commitment || 2.0,
+      skillLevel: roadmap.skill_level || "intermediate",
+      dayNumber: 1,
+      totalDays: insertedDays.length,
+    });
   }
 
-  // 5. Log Agent 1 execution
-  await logAgentExecution(userId, "Agent 1: Roadmap Structure", 350, 820, 420);
+  await consumeTokensInDb(userId, planUsage, "Agent 2: Daily Structure");
 
   return {
     roadmap,
@@ -514,242 +963,561 @@ export async function saveDayTopicsToSupabase(
   dayNumber: number = 1,
   dayTitle: string = ""
 ): Promise<SupabaseTopic[]> {
-  const supabase = createClient();
-
-  // Check if topics already exist
-  const { data: existing } = await supabase
-    .from("roadmap_topics")
-    .select("*")
-    .eq("day_id", dayId)
-    .order("topic_number", { ascending: true });
-
-  if (existing && existing.length > 0) {
-    return existing as SupabaseTopic[];
-  }
-
-  const dayTopics = getDomainTopicsForDay(domain, dailyHours, dayNumber, dayTitle);
-  const topicsToInsert = dayTopics.map((t) => ({
+  const dayTopics = await fetchDayTopicsWithAgent2(domain, dailyHours, dayNumber, dayTitle);
+  const fallbackTopics: SupabaseTopic[] = dayTopics.map((t) => ({
+    id: `${dayId}-top-${t.topic_number}`,
     day_id: dayId,
     roadmap_id: roadmapId,
     topic_number: t.topic_number,
     title: t.title,
     description: t.description,
     estimated_minutes: t.estimated_minutes,
-    status: t.topic_number === 1 ? "in_progress" : "not_started",
+    status: (t.topic_number === 1 ? "in_progress" : "not_started") as "in_progress" | "not_started",
   }));
 
-  const { data: inserted, error } = await supabase
-    .from("roadmap_topics")
-    .insert(topicsToInsert)
-    .select()
-    .order("topic_number", { ascending: true });
-
-  if (error || !inserted) {
-    console.error("Error inserting topics to Supabase:", error);
-    return [];
+  // If in guest mode or mock ID, do not query Supabase
+  if (!dayId || !roadmapId || dayId.startsWith("guest-") || dayId.startsWith("local-") || roadmapId.startsWith("guest-") || roadmapId.startsWith("local-")) {
+    return fallbackTopics;
   }
 
-  return inserted as SupabaseTopic[];
+  try {
+    const supabase = createClient();
+
+    // Check if topics already exist
+    const { data: existing } = await supabase
+      .from("roadmap_topics")
+      .select("*")
+      .eq("day_id", dayId)
+      .order("topic_number", { ascending: true });
+
+    if (existing && existing.length > 0) {
+      return existing as SupabaseTopic[];
+    }
+
+    const topicsToInsert = dayTopics.map((t) => ({
+      day_id: dayId,
+      roadmap_id: roadmapId,
+      topic_number: t.topic_number,
+      title: t.title,
+      description: t.description,
+      estimated_minutes: t.estimated_minutes,
+      status: t.topic_number === 1 ? "in_progress" : "not_started",
+    }));
+
+    const { data: inserted, error } = await supabase
+      .from("roadmap_topics")
+      .insert(topicsToInsert)
+      .select()
+      .order("topic_number", { ascending: true });
+
+    if (error || !inserted) {
+      console.warn("Notice inserting topics to Supabase (using local):", error);
+      return fallbackTopics;
+    }
+
+    return inserted as SupabaseTopic[];
+  } catch (err) {
+    console.warn("saveDayTopicsToSupabase network notice:", err);
+    return fallbackTopics;
+  }
+}
+
+export interface LessonFetchOptions {
+  topicDesc?: string;
+  dailyHours?: number;
+  skillLevel?: string;
+  estimatedMinutes?: number;
+  dayNumber?: number;
+  totalDays?: number;
+}
+
+export function generateDomainLesson(
+  topicId: string,
+  topicTitle: string,
+  domain: string,
+  topicDescOrOptions: string | LessonFetchOptions = ""
+): SupabaseLesson {
+  const options = typeof topicDescOrOptions === "object" ? topicDescOrOptions : { topicDesc: topicDescOrOptions };
+  return synthesizeResearchedLesson(topicTitle, domain, options.topicDesc || "", topicId, options);
 }
 
 export async function getOrSaveLessonFromSupabase(
   topicId: string,
   topicTitle: string,
   domain: string,
-  topicDesc: string = ""
+  topicDescOrOptions: string | LessonFetchOptions = ""
 ): Promise<SupabaseLesson> {
-  const supabase = createClient();
+  const options = typeof topicDescOrOptions === "object" ? topicDescOrOptions : { topicDesc: topicDescOrOptions };
+  const fallbackLesson = synthesizeResearchedLesson(topicTitle, domain, options.topicDesc || "", topicId, options);
 
-  // 1. Check if lesson already exists in Supabase
-  const { data: existing } = await supabase
-    .from("topic_lessons")
-    .select("*")
-    .eq("topic_id", topicId)
-    .maybeSingle();
+  // 1. If in guest mode, mock, or custom local ID: STILL call /api/teach to provide live LLM output!
+  const isGuestOrLocal =
+    !topicId ||
+    topicId === "mock" ||
+    topicId.startsWith("guest-") ||
+    topicId.startsWith("local-") ||
+    topicId.startsWith("custom-");
 
-  if (existing) {
-    return existing as SupabaseLesson;
-  }
+  if (isGuestOrLocal) {
+    try {
+      if (typeof window !== "undefined") {
+        const res = await fetch("/api/teach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topicId,
+            topicTitle,
+            domain,
+            topicDesc: options.topicDesc || "",
+            dailyHours: options.dailyHours,
+            estimatedMinutes: options.estimatedMinutes,
+            skillLevel: options.skillLevel,
+            dayNumber: options.dayNumber,
+            totalDays: options.totalDays,
+          }),
+        });
 
-  // 2. Generate universal domain & topic-tailored lesson content
-  const category = classifyDomain(domain);
-  const cleanDomain = domain.trim();
-  const cleanTopic = topicTitle.replace(/^Topic\s+\d+:\s*/, "").trim();
-
-  const isCode = category === "data_science" || category === "web_development" || category === "devops_cloud";
-
-  const contentMarkdown = `# ${topicTitle}
-
-## 1. Conceptual Framework & Mental Models
-
-In this masterclass module on **${cleanDomain}**, we explore the foundational mechanics and critical mental models governing **${cleanTopic}**.
-
-### Core Architectural Pillars
-- **First-Principles Rigor**: Ground intermediate techniques directly in the foundational invariants of ${cleanDomain}.
-- **Deterministic State Transitions**: Ensure your workflow produces verifiable, reproducible outcomes across varying conditions.
-- **Systematic Feedback Loops**: Isolate edge cases early through structured verification and rapid diagnostics.
-
-## 2. In-Depth Technical & Theoretical Breakdown
-
-Mastery in **${cleanDomain}** demands deconstructing complex workflows into modular, verifiable components. When approaching **${cleanTopic}**, pay close attention to boundary constraints, operational trade-offs, and failure boundaries. Avoid superficial memorization—focus instead on how state, signals, and materials flow through each stage of execution.
-
-## 3. Step-by-Step Practical Methodology
-
-1. **Audit Environment & Inputs**: Verify all preconditions, configurations, and baseline parameters before initiating work.
-2. **Implement Primary Pathway**: Execute the canonical workflow cleanly, avoiding speculative abstractions or premature optimizations.
-3. **Stress-Test Boundary Scenarios**: Introduce adversarial inputs, unexpected conditions, and measure how gracefully the system recovers.
-
-## 4. Best Practices & Pitfalls to Avoid
-
-1. **Never Bypass Baseline Auditing**: Unverified assumptions at the start compound into silent errors downstream.
-2. **Maintain Strict Observability**: Instrument metrics, logs, or diagnostic checkpoints at every critical state transition.
-3. **Refactor Iteratively**: Validate each milestone against objective performance criteria before progressing.`;
-
-  let codeLang = "python";
-  let codeTitle = `Practical Implementation for ${cleanTopic}`;
-  let codeSnippet = "";
-
-  if (isCode) {
-    if (category === "data_science") {
-      codeLang = "python";
-      codeTitle = `Data Analytics Pipeline for ${cleanTopic}`;
-      codeSnippet = `# Practical Implementation Pipeline for ${cleanTopic}\n# Domain: ${cleanDomain}\n\nimport numpy as np\nimport pandas as pd\n\n# 1. Synthesize structured domain data matrix\nnp.random.seed(42)\ndata = pd.DataFrame({\n    'sample_id': [f'SMPL-{i:04d}' for i in range(1, 101)],\n    'feature_alpha': np.random.normal(loc=50, scale=12, size=100),\n    'feature_beta': np.random.exponential(scale=25, size=100),\n    'status_flag': np.random.choice(['optimal', 'review', 'escalate'], size=100, p=[0.7, 0.2, 0.1])\n})\n\n# 2. Vectorized cleaning and transformation\nvalid_mask = data['feature_alpha'] > 30\nfiltered_df = data.loc[valid_mask].copy()\nfiltered_df['normalized_beta'] = (filtered_df['feature_beta'] - filtered_df['feature_beta'].mean()) / filtered_df['feature_beta'].std()\n\n# 3. Grouped summary diagnostics\nsummary = filtered_df.groupby('status_flag')['normalized_beta'].agg(['count', 'mean', 'std'])\nprint('=== SUMMARY METRICS ===')\nprint(summary)\n`;
-    } else if (category === "web_development") {
-      codeLang = "typescript";
-      codeTitle = `Component & State Pipeline for ${cleanTopic}`;
-      codeSnippet = `// Practical Component & State Pipeline for ${cleanTopic}\n// Domain: ${cleanDomain}\n\nimport { useState, useCallback, useEffect } from 'react';\n\ninterface PipelineState<T> {\n  data: T | null;\n  isLoading: boolean;\n  error: string | null;\n}\n\nexport function useDomainWorkflow<T>(endpoint: string) {\n  const [state, setState] = useState<PipelineState<T>>({\n    data: null,\n    isLoading: true,\n    error: null,\n  });\n\n  const executeStep = useCallback(async () => {\n    setState((prev) => ({ ...prev, isLoading: true, error: null }));\n    try {\n      const res = await fetch(endpoint);\n      if (!res.ok) throw new Error(\`HTTP Error \${res.status}\`);\n      const payload = (await res.json()) as T;\n      setState({ data: payload, isLoading: false, error: null });\n    } catch (err: any) {\n      setState({ data: null, isLoading: false, error: err.message || 'Operation failed' });\n    }\n  }, [endpoint]);\n\n  useEffect(() => {\n    executeStep();\n  }, [executeStep]);\n\n  return { ...state, retry: executeStep };\n}\n`;
-    } else {
-      codeLang = "bash";
-      codeTitle = `Automated Infrastructure Script for ${cleanTopic}`;
-      codeSnippet = `#!/usr/bin/env bash\n# Practical Operational Automation for ${cleanTopic}\n# Domain: ${cleanDomain}\n\nset -euo pipefail\n\necho "[+] Initializing environment check for ${cleanDomain}..."\nCONTAINER_TAG="v1.0.0"\nLOG_FILE="/tmp/operation.log"\n\nif command -v docker >/dev/null 2>&1; then\n  echo "[+] Container runtime detected. Auditing configuration..."\nelse\n  echo "[-] Runtime missing. Bootstrapping dependencies..."\nfi\n\necho "[+] Operational stage completed successfully at $(date)" | tee -a "$LOG_FILE"\n`;
+        if (res.ok) {
+          const data = await res.json();
+          if (
+            data &&
+            data.content_markdown &&
+            !data.content_markdown.includes("In this institutional module on")
+          ) {
+            return {
+              topic_id: topicId,
+              content_markdown: data.content_markdown,
+              practical_examples: data.practical_examples || fallbackLesson.practical_examples,
+              citations: data.citations || fallbackLesson.citations,
+              recommended_courses: data.recommended_courses || fallbackLesson.recommended_courses,
+            };
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.debug("Guest /api/teach client notice:", apiErr);
     }
-  } else if (category === "music_arts") {
-    codeLang = "text";
-    codeTitle = `Applied Practice Protocol: ${cleanTopic}`;
-    codeSnippet = `=== APPLIED PRACTICE PROTOCOL: ${cleanTopic} ===\nDomain: ${cleanDomain}\nTempo: Start at 60 BPM, increase by 4 BPM upon 3 consecutive clean cycles.\n\n1. TECHNICAL WARM-UP (10 mins):\n   - Measure 1-4: Metronome-synchronized scalar articulation.\n   - Exercise: Alternate picking / fingerstroke alternation across adjacent registers.\n   - Focus: Zero sympathetic tension in shoulders, wrist, and fretting hand.\n\n2. APPLIED ETUDE / HARMONIC EXERCISE (25 mins):\n   - Pattern: Root -> 3rd -> 5th -> 7th arpeggiation with voice leading.\n   - Fingerboard/Keyboard: Position shifting with silent, frictionless lateral movement.\n   - Tone production: Keep dynamic level strictly uniform across transitions.\n\n3. MUSICAL PHRASING & EVALUATION (15 mins):\n   - Add expressive vibrato on terminal sustained notes.\n   - Record a 60-second audio snippet and critique timing consistency.\n`;
-  } else if (category === "science_math") {
-    codeLang = "python";
-    codeTitle = `Numerical Simulation & Analytical Solver for ${cleanTopic}`;
-    codeSnippet = `# Analytical & Computational Protocol: ${cleanTopic}\n# Domain: ${cleanDomain}\n\nimport numpy as np\n\n# 1. Define governing physical constants & parameters\ntime_steps = np.linspace(0, 10, 500)\ndecay_constant = 0.35\ninitial_amplitude = 100.0\n\n# 2. Solve governing differential relationship analytically\namplitude_t = initial_amplitude * np.exp(-decay_constant * time_steps)\n\n# 3. Compute rate of change and critical thresholds\nrate_of_change = -decay_constant * amplitude_t\nhalf_life = np.log(2) / decay_constant\n\nprint(f"Half-life threshold: {half_life:.4f} seconds")\nprint(f"Final amplitude at t=10s: {amplitude_t[-1]:.4f}")\n`;
-  } else if (category === "languages") {
-    codeLang = "text";
-    codeTitle = `Conversational Immersion & Linguistic Drills: ${cleanTopic}`;
-    codeSnippet = `=== IMMERSION & SPEECH DRILL PROTOCOL: ${cleanTopic} ===\nLanguage / Domain: ${cleanDomain}\n\n1. PHONETIC ARTICULATION DRILL (10 mins):\n   - Listen to 5 target vocabulary sentences read at native speed.\n   - Shadowing: Repeat each sentence concurrently, matching intonation and syllable stress.\n\n2. GRAMMAR & SUBSTITUTION DRILL (20 mins):\n   - Pattern: [Subject] + [Conjugated Verb] + [Temporal Adverb] + [Direct Object]\n   - Practice 10 variations altering person (1st, 2nd, 3rd) and tense.\n\n3. SPONTANEOUS CIRCUMACTION EXERCISE (15 mins):\n   - Describe a target object or scenario without using the 3 most common keywords.\n   - Record your speech and verify natural connective transition words.\n`;
-  } else {
-    codeLang = "python";
-    codeTitle = `Standard Operating Workflow for ${cleanTopic}`;
-    codeSnippet = `# Standard Operating Workflow: ${cleanTopic}\n# Domain: ${cleanDomain}\n\nclass DomainWorkflow:\n    def __init__(self, domain_name: str):\n        self.domain = domain_name\n        self.state = 'initialized'\n\n    def execute_stage(self, stage_name: str) -> dict:\n        # Execute verified pipeline stage\n        self.state = f'completed_{stage_name}'\n        return {'stage': stage_name, 'status': 'success', 'domain': self.domain}\n\nworkflow = DomainWorkflow('${cleanDomain}')\nresult = workflow.execute_stage('${cleanTopic.slice(0, 25)}')\nprint(result)\n`;
+    return fallbackLesson;
   }
 
-  // Citations and courses curated by category
-  let citations: SupabaseLesson["citations"];
-  let courses: SupabaseLesson["recommended_courses"];
-
-  if (category === "data_science") {
-    citations = [
-      { title: "Python for Data Analysis (Wes McKinney)", url: "https://wesmckinney.com/book/", source_type: "Seminal Textbook", snippet: "Authoritative guide on NumPy arrays, pandas DataFrames, and vectorized data wrangling." },
-      { title: "An Introduction to Statistical Learning (ISLR - James et al.)", url: "https://www.statlearning.com/", source_type: "Academic Reference", snippet: "Foundational text covering regression, classification, cross-validation, and shrinkage methods." },
-    ];
-    courses = [
-      { title: "Applied Data Science with Python (University of Michigan)", platform: "Coursera", url: "https://www.coursera.org/specializations/data-science-python", level: "Intermediate" },
-      { title: "Statistical Thinking for Data Science (Columbia University)", platform: "edX", url: "https://www.edx.org", level: "Intermediate to Advanced" },
-    ];
-  } else if (category === "web_development") {
-    citations = [
-      { title: "React Official Documentation & Architecture Guide", url: "https://react.dev", source_type: "Official Specification", snippet: "Authoritative reference on declarative state, component lifecycles, and reactive boundaries." },
-      { title: "MDN Web Docs: Web Performance & Standards", url: "https://developer.mozilla.org/en-US/docs/Web/Performance", source_type: "Standard Documentation", snippet: "Comprehensive reference on browser render lifecycles, DOM performance, and network caching." },
-    ];
-    courses = [
-      { title: "Full Stack Open (University of Helsinki)", platform: "University of Helsinki", url: "https://fullstackopen.com/en/", level: "Intermediate to Advanced" },
-      { title: "Frontend Masters: Professional Web Architecture", platform: "Frontend Masters", url: "https://frontendmasters.com", level: "Advanced" },
-    ];
-  } else if (category === "music_arts") {
-    citations = [
-      { title: "Pumping Nylon: Classical Guitarist's Technique Handbook (Scott Tennant)", url: "https://alfred.com", source_type: "Seminal Technical Manual", snippet: "The definitive technique guide for fingerboard mechanics, nail shaping, and tone production." },
-      { title: "The Musician's Way: A Guide to Practice, Performance, and Wellness", url: "https://musiciansway.com", source_type: "Academic Reference", snippet: "Authoritative guide on deliberate practice, memorization, and performance anxiety management." },
-    ];
-    courses = [
-      { title: "Berklee College of Music: Harmonic Fundamentals", platform: "Coursera / Berklee", url: "https://www.coursera.org/berklee", level: "Beginner to Intermediate" },
-      { title: "Juilliard Open Learning Masterclass Series", platform: "Juilliard", url: "https://www.juilliard.edu", level: "Intermediate to Advanced" },
-    ];
-  } else if (category === "science_math") {
-    citations = [
-      { title: "The Feynman Lectures on Physics (Richard Feynman et al.)", url: "https://www.feynmanlectures.caltech.edu/", source_type: "Seminal Academic Work", snippet: "Classic masterwork conveying deep physical intuition, mathematical formalism, and mental models." },
-      { title: "Principles of Mathematical Analysis (Walter Rudin)", url: "https://mheducation.com", source_type: "Standard Academic Reference", snippet: "Rigorous foundational text establishing real analysis, topology, and calculus foundations." },
-    ];
-    courses = [
-      { title: "MIT OpenCourseWare: Scientific Foundations", platform: "MIT OCW", url: "https://ocw.mit.edu", level: "Advanced" },
-      { title: "Harvard Online: Quantitative Methods & Modeling", platform: "edX / Harvard", url: "https://www.edx.org", level: "Intermediate" },
-    ];
-  } else {
-    citations = [
-      { title: `The Authoritative Guide & Standards: ${cleanDomain}`, url: "https://scholar.google.com", source_type: "Seminal Reference", snippet: `Foundational literature defining methodology, standards, and best practices in ${cleanDomain}.` },
-      { title: "Harvard / edX Professional Masterclass Series", url: "https://www.edx.org", source_type: "Academic Reference", snippet: "Curated academic curriculum on systematic learning and applied problem solving." },
-    ];
-    courses = [
-      { title: `Mastering ${cleanDomain}: From Fundamentals to Production`, platform: "Coursera / edX", url: "https://www.coursera.org", level: "Intermediate" },
-      { title: "MIT OpenCourseWare Learning Library", platform: "MIT OCW", url: "https://ocw.mit.edu", level: "Advanced" },
-    ];
-  }
-
-  const lessonData: SupabaseLesson = {
-    topic_id: topicId,
-    content_markdown: contentMarkdown,
-    practical_examples: [
-      {
-        language: codeLang,
-        title: codeTitle,
-        code: codeSnippet,
-      },
-    ],
-    citations,
-    recommended_courses: courses,
-  };
-
-  // 3. Insert into topic_lessons in Supabase
-  const { data: inserted, error } = await supabase
-    .from("topic_lessons")
-    .insert(lessonData)
-    .select()
-    .single();
-
-  if (error || !inserted) {
-    console.error("Error inserting lesson to Supabase:", error);
-    return lessonData;
-  }
-
-  return inserted as SupabaseLesson;
-}
-
-export async function logAgentExecution(
-  userId: string,
-  agentName: string,
-  promptTokens: number = 300,
-  completionTokens: number = 600,
-  latencyMs: number = 350
-) {
   try {
     const supabase = createClient();
-    const tokenCost = ((promptTokens * 0.0000015) + (completionTokens * 0.000002)).toFixed(6);
-    await supabase.from("agent_execution_logs").insert({
-      user_id: userId,
-      agent_name: agentName,
-      prompt_tokens: promptTokens,
-      completion_tokens: completionTokens,
-      total_cost_usd: parseFloat(tokenCost),
-      latency_ms: latencyMs,
-      status: "success",
+
+    // 2. Check if lesson already exists in Supabase
+    const { data: existing } = await supabase
+      .from("topic_lessons")
+      .select("*")
+      .eq("topic_id", topicId)
+      .maybeSingle();
+
+    // If existing lesson has authentic researched content, return it
+    if (existing && existing.content_markdown) {
+      const isOldGeneric =
+        !existing.content_markdown ||
+        existing.content_markdown.length < 250 ||
+        (options.estimatedMinutes && options.estimatedMinutes >= 45 && existing.content_markdown.length < 800) ||
+        existing.content_markdown.includes("Pre-Flight Input Audit") ||
+        existing.content_markdown.includes("Superficial Pattern Transfer") ||
+        existing.content_markdown.includes("In this institutional module on") ||
+        existing.content_markdown.includes("Foundational Invariants: Rather than treating") ||
+        existing.content_markdown.includes("Deterministic Operational Flows: Eliminate ambiguous") ||
+        existing.content_markdown.includes("Isolating Failure Boundaries: Complex errors emerge") ||
+        existing.content_markdown.includes("Pre-Execution Audit: Enumerate all initial assumptions") ||
+        existing.content_markdown.includes("Canonical Execution Pathway: Apply the verified") ||
+        existing.content_markdown.includes("Adversarial Stress-Testing: Probe edge cases") ||
+        existing.content_markdown.includes("Superficial Pattern Matching: Applying solutions") ||
+        existing.content_markdown.includes("Absence of Diagnostic Feedback: Failing to establish") ||
+        existing.content_markdown.includes("Invariant Inversion: If the primary governing invariant") ||
+        existing.citations?.some((c: any) =>
+          c.title?.includes("Seminal Foundations & Standard Specification") ||
+          c.title?.includes("Advanced Technical Monograph & Field Manual")
+        ) ||
+        existing.recommended_courses?.some((rc: any) =>
+          rc.title?.includes("Advanced Curriculum & Lecture Series") ||
+          rc.title?.includes("Professional Specialization: Applied")
+        ) ||
+        (existing.content_markdown.includes("In this masterclass module on **") &&
+          !existing.content_markdown.includes("Implementation Checklist") &&
+          !existing.content_markdown.includes("State Machine Replication"));
+
+      // If existing content is genuine/up-to-date, use it directly
+      if (!isOldGeneric) {
+        return existing as SupabaseLesson;
+      }
+      // If it contains the old generic boilerplate, proceed to upgrade it with researched content!
+    }
+
+    // 3. Attempt live research & teaching via Next.js /api/teach endpoint
+    let liveLesson: SupabaseLesson | null = null;
+    let lessonUsage = NO_USAGE;
+    try {
+      if (typeof window !== "undefined") {
+        const res = await fetch("/api/teach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            topicId,
+            topicTitle,
+            domain,
+            topicDesc: options.topicDesc || "",
+            dailyHours: options.dailyHours,
+            estimatedMinutes: options.estimatedMinutes,
+            skillLevel: options.skillLevel,
+            dayNumber: options.dayNumber,
+            totalDays: options.totalDays,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          if (
+            data &&
+            data.content_markdown &&
+            !data.content_markdown.includes("In this institutional module on")
+          ) {
+            lessonUsage = parseUsage(data.usage);
+            liveLesson = {
+              topic_id: topicId,
+              content_markdown: data.content_markdown,
+              practical_examples: data.practical_examples || fallbackLesson.practical_examples,
+              citations: data.citations || fallbackLesson.citations,
+              recommended_courses: data.recommended_courses || fallbackLesson.recommended_courses,
+            };
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.debug("/api/teach client notice (using synthesized knowledge engine):", apiErr);
+    }
+
+    const lessonToPersist: SupabaseLesson = liveLesson || fallbackLesson;
+
+    // The AI call was made whether or not the lesson can be saved
+    if (totalTokens(lessonUsage) > 0) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) await consumeTokensInDb(user.id, lessonUsage, "Agent 3: Daily Teacher");
+      } catch {
+        // non-fatal
+      }
+    }
+
+    // 4. Upsert into topic_lessons in Supabase to permanently persist for all users
+    const { data: inserted, error } = await supabase
+      .from("topic_lessons")
+      .upsert(lessonToPersist, { onConflict: "topic_id" })
+      .select()
+      .maybeSingle();
+
+    if (inserted && !error) {
+      return inserted as SupabaseLesson;
+    }
+
+    return lessonToPersist;
+  } catch (err) {
+    console.warn("getOrSaveLessonFromSupabase notice (offline/fallback):", err);
+    return fallbackLesson;
+  }
+}
+
+export class TokenQuotaExceededError extends Error {
+  currentUsed: number;
+  maxLimit: number;
+  resetDate: string;
+  tier: string;
+
+  constructor(
+    message: string,
+    currentUsed: number,
+    maxLimit: number,
+    resetDate: string = "Next Billing Cycle",
+    tier: string = "Free"
+  ) {
+    super(message);
+    this.name = "TokenQuotaExceededError";
+    this.currentUsed = currentUsed;
+    this.maxLimit = maxLimit;
+    this.resetDate = resetDate;
+    this.tier = tier;
+  }
+}
+
+/**
+ * Validates that user has sufficient reasoning tokens remaining in their cycle.
+ * Also automatically checks and executes monthly billing cycle reset if cycle_resets_at has expired.
+ * Throws TokenQuotaExceededError and dispatches 'roadmap-token-quota-exceeded' if exhausted.
+ */
+export async function assertUserTokenBudget(
+  userId: string | undefined,
+  tokensNeeded: number = 1000
+): Promise<{
+  allowed: boolean;
+  currentUsed: number;
+  maxLimit: number;
+  remaining: number;
+  resetDate: string;
+  tier: string;
+}> {
+  // 1. Guest / Local Mode Check
+  if (!userId || userId === "guest" || userId.startsWith("guest-") || userId.startsWith("local-")) {
+    let guestUsed = 0;
+    const guestLimit = 250000;
+    const now = new Date();
+    const fallbackResetDate = new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric",
     });
 
-    try {
-      await supabase.rpc("increment_token_budget", {
-        p_user_id: userId,
-        p_tokens: promptTokens + completionTokens,
-      });
-    } catch {
-      // ignore if RPC not accessible
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("roadmap_guest_tokens_used");
+      if (stored) {
+        guestUsed = parseInt(stored, 10);
+      }
+    }
+
+    if (guestUsed + tokensNeeded > guestLimit) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("roadmap-token-quota-exceeded", {
+            detail: {
+              currentUsed: guestUsed,
+              maxLimit: guestLimit,
+              resetDate: fallbackResetDate,
+              tier: "Guest Preview",
+            },
+          })
+        );
+      }
+      throw new TokenQuotaExceededError(
+        `This month's AI usage is used up (${guestUsed.toLocaleString()} / ${guestLimit.toLocaleString()} tokens). It starts again next month.`,
+        guestUsed,
+        guestLimit,
+        fallbackResetDate,
+        "Guest Preview"
+      );
+    }
+
+    return {
+      allowed: true,
+      currentUsed: guestUsed,
+      maxLimit: guestLimit,
+      remaining: Math.max(0, guestLimit - guestUsed),
+      resetDate: fallbackResetDate,
+      tier: "Guest Preview",
+    };
+  }
+
+  // 2. Authenticated User Check in Supabase DB
+  try {
+    const supabase = createClient();
+    const { data: budget, error: budgetError } = await supabase
+      .from("token_budgets")
+      .select("tokens_used_current_cycle, max_tokens_monthly, cycle_resets_at")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (budgetError) {
+      console.warn("[assertUserTokenBudget] token_budgets query notice:", budgetError);
+    }
+
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_tier")
+      .eq("id", userId)
+      .maybeSingle();
+
+    const isPro = profile?.subscription_tier === "pro" || budget?.max_tokens_monthly === 2500000;
+    const userTier = isPro ? "Pro" : "Free";
+    let currentUsed = budget?.tokens_used_current_cycle ?? 0;
+    let maxLimit = budget?.max_tokens_monthly ?? (isPro ? 2500000 : 250000);
+    const now = new Date();
+
+    let resetDate = budget?.cycle_resets_at
+      ? new Date(budget.cycle_resets_at).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        })
+      : new Date(now.getFullYear(), now.getMonth() + 1, 1).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+
+    // Check if cycle has expired (automatic monthly rollover)
+    if (budget?.cycle_resets_at) {
+      const resetTime = new Date(budget.cycle_resets_at).getTime();
+      if (now.getTime() >= resetTime) {
+        // Roll over billing cycle to 0
+        const newResetDateIso = new Date(now.getTime() + 30 * 86400000).toISOString();
+        currentUsed = 0;
+        resetDate = new Date(newResetDateIso).toLocaleDateString("en-US", {
+          month: "long",
+          day: "numeric",
+          year: "numeric",
+        });
+
+        await supabase
+          .from("token_budgets")
+          .update({
+            tokens_used_current_cycle: 0,
+            cycle_resets_at: newResetDateIso,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("user_id", userId);
+      }
+    }
+
+    // Strict quota enforcement
+    if (currentUsed + tokensNeeded > maxLimit) {
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("roadmap-token-quota-exceeded", {
+            detail: {
+              currentUsed,
+              maxLimit,
+              resetDate,
+              tier: userTier,
+            },
+          })
+        );
+      }
+
+      throw new TokenQuotaExceededError(
+        `This month's AI usage is used up (${currentUsed.toLocaleString()} / ${maxLimit.toLocaleString()} tokens). It starts again next month.`,
+        currentUsed,
+        maxLimit,
+        resetDate,
+        userTier
+      );
+    }
+
+    return {
+      allowed: true,
+      currentUsed,
+      maxLimit,
+      remaining: Math.max(0, maxLimit - currentUsed),
+      resetDate,
+      tier: userTier,
+    };
+  } catch (err: any) {
+    if (err instanceof TokenQuotaExceededError) {
+      throw err;
+    }
+    console.warn("[assertUserTokenBudget] non-fatal query fallback:", err);
+    return {
+      allowed: true,
+      currentUsed: 0,
+      maxLimit: 250000,
+      remaining: 250000,
+      resetDate: "Next Billing Cycle",
+      tier: "Free",
+    };
+  }
+}
+
+/** Adds what an AI call used to the person's monthly total */
+export async function consumeTokensInDb(
+  userId: string | undefined,
+  usage: TokenUsage,
+  agentName: string
+): Promise<void> {
+  const tokens = totalTokens(usage);
+  if (tokens <= 0 || !userId || userId === "guest" || userId.startsWith("guest-") || userId.startsWith("local-")) return;
+
+  try {
+    const supabase = createClient();
+
+    const { error } = await supabase.rpc("increment_token_budget", { p_user_id: userId, p_tokens: tokens });
+    if (error) console.warn("Usage could not be recorded:", error.message);
+
+    const { error: logError } = await supabase.from("agent_execution_logs").insert({
+      user_id: userId,
+      agent_name: agentName,
+      prompt_tokens: usage.promptTokens,
+      completion_tokens: usage.completionTokens,
+      latency_ms: 0,
+      status: "success",
+    });
+    if (logError) console.debug("agent_execution_logs insert notice (non-fatal):", logError.message);
+
+    if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("roadmap-tokens-updated"));
+  } catch (err) {
+    console.debug("consumeTokensInDb notice:", err);
+  }
+}
+
+export async function updateTopicStatusInSupabase(
+  topicId: string,
+  status: "completed" | "in_progress" | "not_started"
+) {
+  if (!topicId || topicId.startsWith("topic-")) return;
+  try {
+    const supabase = createClient();
+    await supabase
+      .from("roadmap_topics")
+      .update({ status })
+      .eq("id", topicId);
+  } catch (err) {
+    console.debug("updateTopicStatusInSupabase notice:", err);
+  }
+}
+
+export async function getTopicByIdFromSupabase(topicId: string) {
+  if (!topicId) return null;
+  try {
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("roadmap_topics")
+      .select("*, roadmap_days(id, day_number, title, roadmaps(id, title, domain_context, skill_level, total_days, daily_hours_commitment))")
+      .eq("id", topicId)
+      .maybeSingle();
+
+    if (data && !error) {
+      return data;
     }
   } catch (err) {
-    console.debug("Agent log notice:", err);
+    console.debug("getTopicByIdFromSupabase notice:", err);
   }
+  return null;
+}
+
+export interface UsageSummary {
+  used: number;
+  limit: number;
+  /** Null when the date on record has already passed */
+  resetsAt: Date | null;
+  paths: number;
+  topicsDone: number;
+}
+
+/** Everything on the Usage page, straight from the database. Throws when it cannot be read. */
+export async function getUsageSummary(userId: string): Promise<UsageSummary> {
+  const supabase = createClient();
+  const [budget, roadmaps] = await Promise.all([
+    supabase
+      .from("token_budgets")
+      .select("tokens_used_current_cycle, max_tokens_monthly, cycle_resets_at")
+      .eq("user_id", userId)
+      .maybeSingle(),
+    supabase.from("roadmaps").select("id, roadmap_days(roadmap_topics(status))").eq("user_id", userId),
+  ]);
+  if (budget.error) throw budget.error;
+  if (roadmaps.error) throw roadmaps.error;
+
+  const resetsAt = budget.data?.cycle_resets_at ? new Date(budget.data.cycle_resets_at) : null;
+  type Row = { roadmap_days?: Array<{ roadmap_topics?: Array<{ status: string }> }> };
+  const rows = (roadmaps.data ?? []) as Row[];
+
+  return {
+    used: budget.data?.tokens_used_current_cycle ?? 0,
+    limit: budget.data?.max_tokens_monthly ?? 250000,
+    resetsAt: resetsAt && resetsAt.getTime() > Date.now() ? resetsAt : null,
+    paths: rows.length,
+    topicsDone: rows
+      .flatMap((r) => r.roadmap_days ?? [])
+      .flatMap((d) => d.roadmap_topics ?? [])
+      .filter((t) => t.status === "completed").length,
+  };
 }

@@ -1,22 +1,143 @@
+@import url('https://api.fontshare.com/v2/css?f[]=clash-display@200,300,400,500,600,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+Kannada:wght@500&display=swap&text=%E0%B2%A6%E0%B2%BE%E0%B2%B0%E0%B2%BF');
+@import url('https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400;1,700&display=swap');
+
 @import "tailwindcss";
 
+/* 3. Sprat (Sharp Variable Display Serif by Ethan Nakache) */
+@font-face {
+  font-family: 'Sprat';
+  src: url('https://cdn.jsdelivr.net/gh/EthanNakache/Sprat-type@master/Sprat_Variable.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sprat';
+  src: url('https://cdn.jsdelivr.net/gh/EthanNakache/Sprat-type@master/Sprat-RegularBold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Sprat';
+  src: url('https://cdn.jsdelivr.net/gh/EthanNakache/Sprat-type@master/Sprat-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
-  --background: #06070a;
-  --foreground: #f3f4f6;
+  /* Light Mode Foundation (Platinum Slate & Obsidian Ink) */
+  --background: oklch(0.960 0.003 250);       /* Soft platinum slate surface */
+  --foreground: oklch(0.16 0.006 250);        /* Deep obsidian black */
+  --card: oklch(1 0 0);                       /* Pure white card surface */
+  --card-foreground: oklch(0.16 0.006 250);
+  --popover: oklch(0.985 0.002 250);
+  --popover-foreground: oklch(0.16 0.006 250);
+  --muted: oklch(0.925 0.004 250);
+  --muted-foreground: oklch(0.46 0.006 250);
+  --border: oklch(0.895 0.005 250);
+  --radius: 0.625rem;                         /* 10px base border-radius */
+
+  /* 3-Tier Typeface Tokens */
+  --font-display: "Clash Display", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-sans: "Atkinson Hyperlegible", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-serif: "Sprat", Georgia, Cambria, "Times New Roman", serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+
+  /* Institutional Multi-Color Palette Tokens */
+  --saffron: #f97316;
+  --amber: #f59e0b;
+  --emerald: #10b981;
+  --cyan: #06b6d4;
+  --rose: #f43f5e;
+  --purple: #8b5cf6;
+}
+
+.dark {
+  /* Dark Mode Foundation (Obsidian & High-Contrast Slate) */
+  --background: oklch(0.145 0 0);             /* Deep dark obsidian #07080b / #0a0c10 */
+  --foreground: oklch(0.985 0 0);             /* Pure crisp white */
+  --card: oklch(0.205 0 0);                   /* Elevated obsidian surface */
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --border: oklch(1 0 0 / 10%);               /* 10% translucent white hairline */
+  --radius: 0.625rem;
+
+  --saffron: #fb923c;
+  --amber: #fbbf24;
+  --emerald: #34d399;
+  --cyan: #38bdf8;
+  --rose: #fb7185;
+  --purple: #a78bfa;
+  --racing-lime: #d4f934;
+  --racing-dark: #08090b;
+}
+
+/* Lando Norris Signature Selection */
+::selection {
+  background-color: #d4f934;
+  color: #08090b;
+}
+::-moz-selection {
+  background-color: #d4f934;
+  color: #08090b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-saffron: var(--saffron);
+  --color-amber: var(--amber);
+  --color-emerald: var(--emerald);
+  --color-cyan: var(--cyan);
+  --color-rose: var(--rose);
+  --color-purple: var(--purple);
+  --font-display: var(--font-display);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   overflow-x: hidden;
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 1. Clash Display for Headings, Brandmark & Display Titles */
+h1, h2, h3, h4, h5, h6, .font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+}
+
+/* 2. Atkinson Hyperlegible for General UI, Body & Form Controls */
+p, input, button, textarea, select, label, .font-body {
+  font-family: var(--font-sans);
+}
+
+/* 3. Sprat for Blockquotes, Quotes, Editorial & Manifesto Accents */
+blockquote, cite, .font-serif, .font-sprat {
+  font-family: var(--font-serif);
+  letter-spacing: -0.01em;
 }
 
 /* Custom Scrollbar */
@@ -25,61 +146,67 @@ body {
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: rgba(15, 17, 23, 0.6);
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(99, 102, 241, 0.25);
+  background: rgba(0, 0, 0, 0.15);
   border-radius: 9999px;
 }
+.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+}
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(99, 102, 241, 0.5);
+  background: rgba(0, 0, 0, 0.3);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
-/* 3D Spatial Transforms */
-.perspective-1000 {
-  perspective: 1000px;
+/* Glassmorphism with Specular Borders (from SKILL.md) */
+.idle-glass {
+  background: rgba(245, 245, 248, 0.7);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0px 10px 40px -10px rgba(10, 10, 10, 0.08);
 }
 
-.preserve-3d {
-  transform-style: preserve-3d;
+.dark .idle-glass {
+  background: rgba(18, 18, 20, 0.75);
+  border: 0.5px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0px 16px 40px -10px rgba(0, 0, 0, 0.4);
 }
 
-.backface-hidden {
-  backface-visibility: hidden;
+/* Institutional Card Surfaces (from SKILL.md) */
+.idle-card {
+  background: var(--card);
+  color: var(--card-foreground);
+  border: 0.5px solid var(--border);
+  box-shadow: 0px 10px 40px -10px rgba(10, 10, 10, 0.06);
+  border-radius: 24px;
+  position: relative;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-/* Antigravity Glassmorphism & Atmospheric Lighting */
-.glass-panel {
-  background: rgba(13, 15, 23, 0.65);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+.idle-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0px 16px 45px -10px rgba(10, 10, 10, 0.1);
 }
 
-.glass-panel-elevated {
-  background: linear-gradient(135deg, rgba(20, 24, 39, 0.75) 0%, rgba(10, 12, 20, 0.85) 100%);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(99, 102, 241, 0.25);
-  box-shadow: 0 25px 60px -15px rgba(99, 102, 241, 0.18), inset 0 1px 1px rgba(255, 255, 255, 0.15);
+/* Specular Inset Rim Highlight (from SKILL.md) */
+.idle-inner-bevel {
+  box-shadow: inset 0px 0px 14px 0px rgba(255, 255, 255, 0.8);
 }
 
-.glass-pill {
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+.dark .idle-inner-bevel {
+  box-shadow: inset 0px 0px 14px 0px rgba(255, 255, 255, 0.06);
 }
 
-/* Isometric Card Snapping */
-.isometric-view {
-  transform: rotateX(20deg) rotateZ(-10deg) skewX(5deg);
-  transform-origin: center center;
-  transition: transform 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.isometric-view:hover {
-  transform: rotateX(0deg) rotateZ(0deg) skewX(0deg) scale(1.02);
+/* Prevent layout shift with select contents */
+body[data-scroll-locked]:has([data-slot="select-content"]) {
+  overflow-y: scroll !important;
+  margin-right: 0 !important;
+  padding-right: 0 !important;
 }
 
 /* Floating Animation Keyframes */
@@ -88,36 +215,7 @@ body {
     transform: translateY(0px) rotate(0deg);
   }
   50% {
-    transform: translateY(-8px) rotate(0.5deg);
-  }
-}
-
-@keyframes floatSubtle {
-  0%, 100% {
-    transform: translateY(0px);
-  }
-  50% {
-    transform: translateY(-4px);
-  }
-}
-
-@keyframes pulseGlow {
-  0%, 100% {
-    opacity: 0.4;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.8;
-    transform: scale(1.08);
-  }
-}
-
-@keyframes shimmerWave {
-  0% {
-    background-position: -200% 0;
-  }
-  100% {
-    background-position: 200% 0;
+    transform: translateY(-6px) rotate(0.2deg);
   }
 }
 
@@ -125,16 +223,196 @@ body {
   animation: floatSlow 6s ease-in-out infinite;
 }
 
-.animate-float-subtle {
-  animation: floatSubtle 4s ease-in-out infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulseGlow 4s ease-in-out infinite;
-}
-
 /* Dot Grid Background Pattern */
 .bg-dot-grid {
-  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+  background-image: radial-gradient(rgba(0, 0, 0, 0.06) 1px, transparent 1px);
   background-size: 24px 24px;
 }
+
+.dark .bg-dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.08) 1px, transparent 1px);
+}
+
+/* Mathematical Display Equation Styling */
+.math-display-card {
+  margin: 1.5rem 0;
+  padding: 1.25rem 1.5rem;
+  border-radius: 1rem;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--border);
+  overflow-x: auto;
+  text-align: center;
+  font-family: KaTeX_Main, "Times New Roman", Times, serif;
+  box-shadow: 0 2px 8px -2px rgba(0, 0, 0, 0.04);
+}
+
+.dark .math-display-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 4px 16px -4px rgba(0, 0, 0, 0.4);
+}
+
+.math-inline {
+  display: inline-block;
+  padding: 0 0.25rem;
+  font-family: KaTeX_Main, "Times New Roman", Times, serif;
+}
+
+/* Architecture Topology & Diagram Canvas */
+.diagram-canvas {
+  position: relative;
+  border-radius: 1rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  overflow: hidden;
+  margin: 1.75rem 0;
+  box-shadow: 0 8px 30px -8px rgba(0, 0, 0, 0.08);
+}
+
+.dark .diagram-canvas {
+  background: oklch(0.18 0.01 250);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 12px 40px -10px rgba(0, 0, 0, 0.6);
+}
+
+.diagram-canvas svg {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+/* Home opening: the page blurs into focus.
+   Clipped to one screen so only the visible area is blurred. */
+.intro-reveal {
+  height: 100vh;
+  overflow: hidden;
+  opacity: 0;
+  filter: blur(28px);
+  transform: scale(1.04);
+  pointer-events: none;
+  will-change: filter, opacity, transform;
+  transition: opacity 900ms ease-out, filter 1100ms cubic-bezier(0.33, 1, 0.68, 1),
+    transform 1100ms cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.intro-reveal.is-revealed {
+  opacity: 1;
+  filter: blur(0);
+  transform: scale(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro-reveal {
+    filter: none;
+    transform: none;
+    transition: opacity 300ms ease;
+  }
+}
+
+/* Page Route Transition (Cinematic Blur-In & Blur-Out) */
+.page-transition-wrapper {
+  width: 100%;
+  min-height: 100%;
+  transition-property: filter, opacity, transform;
+}
+
+.page-transition-wrapper.stage-idle {
+  filter: none;
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+  transition-duration: 320ms;
+  transition-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+}
+
+.page-transition-wrapper.stage-exiting {
+  will-change: filter, opacity, transform;
+  filter: blur(14px);
+  opacity: 0;
+  transform: scale(0.99) translateY(-6px);
+  transition-duration: 200ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.page-transition-wrapper.stage-entering {
+  will-change: filter, opacity, transform;
+  filter: blur(14px);
+  opacity: 0;
+  transform: scale(0.99) translateY(6px);
+  transition-duration: 0ms;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-transition-wrapper {
+    filter: none !important;
+    transform: none !important;
+    transition: opacity 120ms ease !important;
+  }
+}
+
+/* Agentation visual feedback portal & annotation marker interactivity rules */
+div[data-agentation-portal] {
+  pointer-events: auto !important;
+  z-index: 999999 !important;
+}
+
+div[data-agentation-portal] button,
+div[data-agentation-portal] textarea,
+div[data-agentation-portal] input {
+  pointer-events: auto !important;
+}
+
+.agentation-workflow-wrapper {
+  position: relative;
+  z-index: 999999;
+  pointer-events: auto;
+}
+
+
+
+/* ===================== Home page ===================== */
+.font-kn { font-family: "Noto Serif Kannada", "Noto Sans Kannada", "Tunga", "Kannada Sangam MN", serif; font-weight: 500; }
+
+/* The big outlined ದಾರಿ */
+.home-outline { color: transparent; -webkit-text-stroke: 1.5px color-mix(in oklab, var(--foreground) 35%, transparent); }
+
+/* Opening map: the route draws up to the summit, stops appear along the way */
+.home-route { fill: none; stroke: var(--saffron); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 1; stroke-dashoffset: 1; }
+.home-route-glow { stroke-width: 14; opacity: 0.18; filter: blur(6px); }
+.is-drawn .home-route { animation: homeRouteDraw 2.6s cubic-bezier(.65,0,.35,1) 0.3s forwards; }
+.home-stop { opacity: 0; }
+.is-drawn .home-stop { animation: homeFade 0.6s ease-out forwards; }
+.is-drawn .home-summit-ring { transform-box: fill-box; transform-origin: center; animation: homeFade 0.6s ease-out forwards, homePulse 2.8s ease-out 3s infinite; }
+@keyframes homeRouteDraw { to { stroke-dashoffset: 0; } }
+@keyframes homeFade { to { opacity: 1; } }
+@keyframes homePulse { 0% { transform: scale(1); opacity: 1; } 70%,100% { transform: scale(1.9); opacity: 0; } }
+
+/* Headline rises in once the intro hands over */
+.home-hero-in { opacity: 0; transform: translateY(24px); transition: opacity 1s ease-out, transform 1s cubic-bezier(.2,.7,.2,1); }
+.is-revealed .home-hero-in, .flex:not(.intro-reveal) > #cockpit .home-hero-in { opacity: 1; transform: none; }
+.home-hero-in-late { transition-delay: 0.25s; }
+
+/* Sections fade up as they scroll in */
+.home-reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.9s ease-out, transform 0.9s cubic-bezier(.2,.7,.2,1); }
+.home-reveal.is-shown { opacity: 1; transform: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  .home-route { stroke-dashoffset: 0; animation: none !important; }
+  .home-stop, .home-hero-in, .home-reveal { opacity: 1 !important; transform: none !important; animation: none !important; transition: none !important; }
+}
+
+/* Dark band <-> page: an eased gradient (no visible start or end line) */
+.band-fade-out, .band-fade-in {
+  background: linear-gradient(var(--dir),
+    var(--band-dark) 0%,
+    color-mix(in oklab, var(--band-dark) 92%, var(--background)) 14%,
+    color-mix(in oklab, var(--band-dark) 75%, var(--background)) 30%,
+    color-mix(in oklab, var(--band-dark) 50%, var(--background)) 50%,
+    color-mix(in oklab, var(--band-dark) 25%, var(--background)) 70%,
+    color-mix(in oklab, var(--band-dark) 8%, var(--background)) 86%,
+    var(--background) 100%);
+}
+.band-fade-out { --dir: to bottom; margin-top: -1px; }
+.band-fade-in { --dir: to top; margin-bottom: -1px; }

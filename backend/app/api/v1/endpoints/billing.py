@@ -7,7 +7,7 @@ from app.core.config import settings
 router = APIRouter()
 
 @router.get("/status", response_model=Dict[str, Any])
-async def get_subscription_status(
+def get_subscription_status(
     user_id: str = Depends(get_current_user_id)
 ):
     return get_user_subscription(user_id)
